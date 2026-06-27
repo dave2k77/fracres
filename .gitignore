@@ -25,6 +25,9 @@ outputs/
 runs/
 wandb/
 
+# Claude Code harness state
+.claude/
+
 # OS / editor
 .DS_Store
 Thumbs.db
