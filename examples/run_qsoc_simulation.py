@@ -31,13 +31,16 @@ def main():
     )
 
     drive = generate_fbm_increments(TIME_STEPS, H=H_NOISE, key=k_noise)[:, None]
-    X_states, Y_hat, B_thresholds = model.simulate(drive, dt=0.01)
+    X_states, Y_hat, B_thresholds, E_energy = model.simulate(drive, dt=0.01)
 
     print(f"states:     {X_states.shape}")
     print(f"observed:   {Y_hat.shape}")
     print(f"thresholds: {B_thresholds.shape}")
     print(f"mean |b| early -> late: {jnp.abs(B_thresholds[:50]).mean():.4f} "
           f"-> {jnp.abs(B_thresholds[-50:]).mean():.4f}")
+    # Windowed energy should be regulated toward E_crit (= 1.0) by the homeostasis.
+    print(f"windowed energy E early -> late: {E_energy[:50].mean():.4f} "
+          f"-> {E_energy[-50:].mean():.4f}  (target E_crit={model.reservoir.E_crit})")
     assert jnp.all(jnp.isfinite(Y_hat)), "non-finite outputs"
 
 

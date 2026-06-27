@@ -26,10 +26,12 @@ def test_qsoc_returns_thresholds():
     kernel = GLKernel(alpha=0.8, history_length=20)
     model = qSOCPhantomBrain(1, 32, 4, kernel, key=KEY, tau_b=5.0)
     drive = generate_fbm_increments(100, H=0.7, key=KEY)[:, None]
-    X, Y, B = model.simulate(drive, dt=0.01)
+    X, Y, B, E = model.simulate(drive, dt=0.01)
     assert Y.shape == (100, 4)
     assert B.shape == (100, 32)
+    assert E.shape == (100,)
     assert jnp.all(jnp.isfinite(B))
+    assert jnp.all(jnp.isfinite(E))
 
 
 def test_fbm_increments_unit_variance():

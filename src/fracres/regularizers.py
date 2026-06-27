@@ -7,8 +7,12 @@ Littlewood-Paley characterisation: dyadic frequency-band filtering, computable i
 ``O(n log n)`` with FFTs (knowledge base Section 4).
 
 Regularity bounds (enforced by the caller, see :mod:`fracres.training`):
-    integrability  p < alpha    (order of the fractional derivative)
-    smoothness     s < H        (Hurst exponent of the driving fBm)
+    integrability  p < alpha_S        (stability index of the heavy-tailed drive;
+                                        = 2 for Gaussian fGn -- NOT the derivative order)
+    smoothness     s < min{H, 1/p}    (fBm Hurst intersected with the Besov
+                                        embedding scale 1/p)
+
+See knowledge base v2 §4.2 for the derivation of these bounds.
 """
 from __future__ import annotations
 
@@ -66,7 +70,9 @@ def littlewood_paley_penalty(
     delta_j = jnp.real(jnp.fft.ifft(filtered_fft, axis=1))  # (J, T, F)
 
     # L^p norm of each dyadic block, scaled by 2^{js}, then l^q aggregation.
-    Lp_norms = jnp.sum(jnp.abs(delta_j) ** p + 1e-12, axis=(1, 2)) ** (1.0 / p)
+    # Stabiliser is added to the base (|delta| + eps)^p rather than to the
+    # summand, which keeps the gradient well-behaved near zero when p < 1.
+    Lp_norms = jnp.sum((jnp.abs(delta_j) + 1e-12) ** p, axis=(1, 2)) ** (1.0 / p)
     j_indices = jnp.arange(1, masks.shape[0] + 1)
     scaled_norms = (2.0 ** (j_indices * s)) * Lp_norms
     return jnp.sum(scaled_norms**q) ** (1.0 / q)

@@ -8,11 +8,13 @@ the reservoir weights are frozen near the edge of chaos.
 Two variants are provided:
 
 * :class:`FractionalReservoir` -- the base parameterised reservoir. With a
-  :class:`~fracres.kernels.GLKernel` and a sigmoid activation this is exactly the
-  fractional neural-mass reservoir of the knowledge base (Section 2.2 / 3).
+  :class:`~fracres.kernels.GLKernel` this is the single-population reduction of
+  the fractional neural-mass reservoir (knowledge base v2 Section 2.2 / 3). The
+  activation is ``tanh`` (zero-centred, avoids DC drift -- see :mod:`fracres.kernels`),
+  not the ``sigmoid`` of the v1 pseudocode.
 * :class:`qSOCFractionalReservoir` -- adds a quasi-self-organised-criticality
   homeostatic threshold ``b_t`` that pulls macroscopic energy toward a critical
-  set-point (Section 5).
+  set-point (knowledge base v2 Section 5).
 """
 from __future__ import annotations
 
@@ -118,15 +120,19 @@ class FractionalReservoir(eqx.Module):
 class qSOCFractionalReservoir(eqx.Module):
     """Fractional reservoir with quasi-self-organised-criticality homeostasis.
 
-    Extends :class:`FractionalReservoir` with an adaptive threshold ``b_t`` that
-    is driven by the discrepancy between a target critical energy ``E_crit`` and
-    the instantaneous macroscopic energy, integrated with time constant
-    ``tau_b``::
+    Extends :class:`FractionalReservoir` with an adaptive threshold ``b_t`` driven
+    by the discrepancy between a target critical energy ``E_crit`` and the
+    *windowed* macroscopic energy ``E`` (knowledge base v2 Section 5.1):
 
-        tau_b db/dt = -b + gamma (E_crit - ||x||^2)
+        tau_soc dE/dt = ||x||^2 - E                 (leaky-integrator energy window)
+        tau_b   db/dt = -b + gamma (E_crit - E)     (homeostatic threshold)
 
-    This feedback anchors the trajectory inside the tight Besov bounds and keeps
-    the network from drifting into super- or sub-criticality.
+    Both states are carried through the scan. Unlike the v1 controller -- which
+    *defined* a windowed energy but *used* the instantaneous ``||x||^2`` -- the
+    written and implemented controllers now agree. The threshold uses the
+    unconditionally-stable semi-implicit Euler step
+    ``b <- (b + (dt/tau_b) gamma (E_crit - E)) / (1 + dt/tau_b)``, avoiding the
+    explicit step's ``dt < 2 tau_b`` restriction.
     """
 
     W_res: jnp.ndarray
@@ -140,6 +146,7 @@ class qSOCFractionalReservoir(eqx.Module):
     E_crit: float
     tau_b: float
     gamma: float
+    tau_soc: float
 
     def __init__(
         self,
@@ -153,6 +160,7 @@ class qSOCFractionalReservoir(eqx.Module):
         E_crit: float = 1.0,
         tau_b: float = 1.0,
         gamma: float = 1.0,
+        tau_soc: float = 10.0,
     ):
         k1, k2 = jax.random.split(key)
         self.W_res = jax.random.normal(k1, (res_size, res_size)) * spectral_scale / jnp.sqrt(res_size)
@@ -166,11 +174,19 @@ class qSOCFractionalReservoir(eqx.Module):
         self.E_crit = E_crit
         self.tau_b = tau_b
         self.gamma = gamma
+        self.tau_soc = tau_soc
 
-    def __call__(self, u_t: jnp.ndarray, x_history: jnp.ndarray, b_t: jnp.ndarray, dt: float):
-        """Advance one step, carrying the dynamic homeostatic threshold ``b_t``.
+    def __call__(
+        self,
+        u_t: jnp.ndarray,
+        x_history: jnp.ndarray,
+        b_t: jnp.ndarray,
+        e_t: jnp.ndarray,
+        dt: float,
+    ):
+        """Advance one step, carrying threshold ``b_t`` and windowed energy ``e_t``.
 
-        Returns ``(x_next, new_history, b_next)``.
+        Returns ``(x_next, new_history, b_next, e_next)``.
         """
         op = self.fractional_operator
         fractional_memory = op(x_history)
@@ -183,12 +199,17 @@ class qSOCFractionalReservoir(eqx.Module):
             + forcing * (-self.decay * current_state + activation)
         )
 
-        # Homeostatic threshold update (explicit Euler step of the qSOC ODE).
-        current_energy = jnp.mean(jnp.square(x_next))
-        db = (-b_t + self.gamma * (self.E_crit - current_energy)) / self.tau_b
-        b_next = b_t + db * dt
+        # Low-pass the instantaneous energy into the windowed estimate E (matches
+        # the written E_avg); explicit Euler is fine here (a stable 1st-order LPF).
+        inst_energy = jnp.mean(jnp.square(x_next))
+        e_next = e_t + dt * (inst_energy - e_t) / self.tau_soc
 
-        return x_next, _roll_in(x_history, x_next), b_next
+        # Homeostatic threshold: unconditionally-stable semi-implicit Euler step.
+        b_next = (
+            b_t + (dt / self.tau_b) * self.gamma * (self.E_crit - e_next)
+        ) / (1.0 + dt / self.tau_b)
+
+        return x_next, _roll_in(x_history, x_next), b_next, e_next
 
 
 class NeuralFieldReservoir(eqx.Module):

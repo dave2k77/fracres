@@ -10,8 +10,19 @@ priority; check items off as they land.
       (unit linear memory gain) plus an `h^alpha`-scaled `-lambda x_{k-1}` leak
       and zero-centred `tanh`, giving bounded state norms. **This deliberately
       departs from the literal coefficients in `docs/knowledge_base.md` §3.2/§6
-      (leading coeff 1, `sigmoid`, no `h^alpha`) — the note should be updated to
-      match.**
+      (leading coeff 1, `sigmoid`, no `h^alpha`) — corrected in
+      `docs/knowledge_base_v2.md` §3.2.**
+- [x] **Froze the reservoir for training** (v2 §6.2). `train_step` partitions the
+      model via `readout_filter_spec`; only `readout.W_out` gets gradients
+      (`W_res`/`W_in`/kernel weights verified frozen by a smoke test).
+- [x] **Corrected the Besov indices** (v2 §4.2). `besov_indices(H, alpha_stable=2)`
+      sets `p < alpha_S` (heavy-tail index, not the derivative order) and
+      `s = min(H, 1/p) - margin`.
+- [x] **Reconciled the qSOC controller** (v2 §5.1 / §10 item 3). The reservoir now
+      low-passes a windowed energy state `E` (`tau_soc`) carried through the scan
+      and updates the threshold with an unconditionally-stable semi-implicit step,
+      so the written and implemented controllers agree. `simulate()` now also
+      returns the `E` trajectory.
 
 ## Now — make the core solid
 - [ ] **Validate the GL/L1 kernels** against analytic fractional derivatives
@@ -46,8 +57,9 @@ priority; check items off as they land.
 - Step size `h` (`step_size`) and decay `lambda` (`decay`) are currently fixed
   defaults (0.1, 1.0). Treat them as first-class, possibly per-node, parameters
   and study how they trade off against the kernel `leading` gain.
-- Explicit-Euler qSOC threshold update is stable at the tested parameters but
-  may need an implicit/semi-implicit step at small `tau_b`.
+- qSOC threshold now uses an unconditionally-stable semi-implicit step (resolved);
+  the energy low-pass `E` still uses explicit Euler — fine as a 1st-order LPF, but
+  pick `tau_soc` deliberately relative to `dt` and the dynamics timescale.
 - `generate_fbm_increments` standardises by empirical std — confirm this
   preserves the intended fGn covariance closely enough, or switch to exact
   Davies–Harte scaling.

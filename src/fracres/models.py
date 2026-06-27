@@ -80,31 +80,39 @@ class qSOCPhantomBrain(eqx.Module):
         E_crit: float = 1.0,
         tau_b: float = 1.0,
         gamma: float = 1.0,
+        tau_soc: float = 10.0,
     ):
         k1, k2 = jax.random.split(key)
         self.reservoir = qSOCFractionalReservoir(
             in_features, res_size, fractional_operator, k1,
-            spectral_scale, step_size, decay, E_crit, tau_b, gamma,
+            spectral_scale, step_size, decay, E_crit, tau_b, gamma, tau_soc,
         )
         self.readout = TopologicalReadout(res_size, out_features, k2)
 
     def __call__(self, U_drive: jnp.ndarray, dt: float = 0.01) -> jnp.ndarray:
-        _, Y_hat, _ = self.simulate(U_drive, dt)
+        _, Y_hat, _, _ = self.simulate(U_drive, dt)
         return Y_hat
 
     def simulate(self, U_drive: jnp.ndarray, dt: float = 0.01):
-        """Return ``(X_states, Y_hat, B_thresholds)``."""
+        """Return ``(X_states, Y_hat, B_thresholds, E_energy)``.
+
+        ``E_energy`` is the windowed macroscopic-energy trajectory tracked by the
+        qSOC controller (scalar per time step).
+        """
         res_size = self.reservoir.W_res.shape[0]
 
         def step_fn(carry, u_t):
-            x_history, b_t = carry
-            x_next, updated_history, b_next = self.reservoir(u_t, x_history, b_t, dt)
+            x_history, b_t, e_t = carry
+            x_next, updated_history, b_next, e_next = self.reservoir(
+                u_t, x_history, b_t, e_t, dt
+            )
             y_hat_t = self.readout(x_next)
-            return (updated_history, b_next), (x_next, y_hat_t, b_t)
+            return (updated_history, b_next, e_next), (x_next, y_hat_t, b_t, e_t)
 
         init_history = jnp.zeros((self.reservoir.history_length, res_size))
         init_bias = jnp.zeros((res_size,))
-        _, (X_states, Y_hat, B_thresholds) = jax.lax.scan(
-            step_fn, (init_history, init_bias), U_drive
+        init_energy = jnp.array(0.0)
+        _, (X_states, Y_hat, B_thresholds, E_energy) = jax.lax.scan(
+            step_fn, (init_history, init_bias, init_energy), U_drive
         )
-        return X_states, Y_hat, B_thresholds
+        return X_states, Y_hat, B_thresholds, E_energy
