@@ -13,7 +13,7 @@ KEY = jax.random.PRNGKey(0)
 
 
 def test_phantom_brain_shapes_and_finite():
-    kernel = L1CaputoKernel(alpha=0.75, history_length=20, dt=0.01)
+    kernel = L1CaputoKernel(alpha=0.75, history_length=20)
     model = PhantomBrain(1, 32, 4, kernel, key=KEY)
     drive = generate_fbm_increments(100, H=0.65, key=KEY)[:, None]
     X, Y = model.simulate(drive)

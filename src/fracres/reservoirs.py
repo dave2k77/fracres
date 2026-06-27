@@ -32,9 +32,15 @@ def _roll_in(x_history: jnp.ndarray, x_next: jnp.ndarray) -> jnp.ndarray:
 class FractionalReservoir(eqx.Module):
     """Parameterised fractional reservoir with an injected memory kernel.
 
-    State update (Grünwald-Letnikov / Caputo discretisation)::
+    Stable Grünwald-Letnikov / Caputo discrete update (see :mod:`fracres.kernels`)::
 
-        x_k = x_{k-1} - memory(x_{k-2..k-L}) + sigma(W_res x_{k-1} + W_in u_k)
+        x_k = leading * x_{k-1} - sum_{j=2}^{L} w_j x_{k-j}
+                      + forcing * [ -lambda x_{k-1} + tanh(W_res x_{k-1} + W_in u_k) ]
+
+    with ``forcing = kernel.forcing_factor * h^alpha``. The kernel-supplied
+    ``leading``/``w_j`` give unit linear memory gain; the ``-lambda x_{k-1}`` leak
+    then pulls the gain strictly below 1 (Echo State Property). ``tanh`` (rather
+    than ``sigmoid``) keeps the drive zero-centred and avoids DC drift.
 
     Parameters
     ----------
@@ -43,18 +49,25 @@ class FractionalReservoir(eqx.Module):
     res_size : int
         Number of reservoir nodes.
     fractional_operator : AbstractFractionalKernel
-        The memory kernel (also fixes ``history_length``).
+        The memory kernel (also fixes ``history_length`` and ``alpha``).
     key : jax.Array
         PRNG key for weight initialisation.
     spectral_scale : float, default 0.95
         Edge-of-chaos scaling for ``W_res`` (``rho ~ spectral_scale``).
+    step_size : float, default 0.1
+        Integration step ``h``; the activation/leak are scaled by ``h^alpha``.
+    decay : float, default 1.0
+        Node decay rate ``lambda`` (the ``Lambda`` diagonal, scalar here).
     """
 
     W_res: jnp.ndarray
     W_in: jnp.ndarray
     fractional_operator: AbstractFractionalKernel
     history_length: int
+    alpha: float
     spectral_scale: float
+    step_size: float
+    decay: float
 
     def __init__(
         self,
@@ -63,6 +76,8 @@ class FractionalReservoir(eqx.Module):
         fractional_operator: AbstractFractionalKernel,
         key: jax.Array,
         spectral_scale: float = 0.95,
+        step_size: float = 0.1,
+        decay: float = 1.0,
     ):
         k1, k2 = jax.random.split(key)
         # Random connectome scaled near the edge of chaos (spectral radius ~ 1).
@@ -70,7 +85,10 @@ class FractionalReservoir(eqx.Module):
         self.W_in = jax.random.normal(k2, (res_size, in_features))
         self.fractional_operator = fractional_operator
         self.history_length = fractional_operator.history_length
+        self.alpha = fractional_operator.alpha
         self.spectral_scale = spectral_scale
+        self.step_size = step_size
+        self.decay = decay
 
     def __call__(self, u_t: jnp.ndarray, x_history: jnp.ndarray):
         """Advance one step.
@@ -84,10 +102,16 @@ class FractionalReservoir(eqx.Module):
         -------
         (x_next, new_history)
         """
-        fractional_memory = self.fractional_operator(x_history[:-1])
+        op = self.fractional_operator
+        fractional_memory = op(x_history)
         current_state = x_history[0]
-        activation = jax.nn.sigmoid(self.W_res @ current_state + self.W_in @ u_t)
-        x_next = current_state - fractional_memory + activation
+        forcing = op.forcing_factor * self.step_size**self.alpha
+        activation = jnp.tanh(self.W_res @ current_state + self.W_in @ u_t)
+        x_next = (
+            op.leading * current_state
+            - fractional_memory
+            + forcing * (-self.decay * current_state + activation)
+        )
         return x_next, _roll_in(x_history, x_next)
 
 
@@ -109,6 +133,10 @@ class qSOCFractionalReservoir(eqx.Module):
     W_in: jnp.ndarray
     fractional_operator: AbstractFractionalKernel
     history_length: int
+    alpha: float
+    spectral_scale: float
+    step_size: float
+    decay: float
     E_crit: float
     tau_b: float
     gamma: float
@@ -119,15 +147,22 @@ class qSOCFractionalReservoir(eqx.Module):
         res_size: int,
         fractional_operator: AbstractFractionalKernel,
         key: jax.Array,
+        spectral_scale: float = 0.95,
+        step_size: float = 0.1,
+        decay: float = 1.0,
         E_crit: float = 1.0,
         tau_b: float = 1.0,
         gamma: float = 1.0,
     ):
         k1, k2 = jax.random.split(key)
-        self.W_res = jax.random.normal(k1, (res_size, res_size)) * 0.95 / jnp.sqrt(res_size)
+        self.W_res = jax.random.normal(k1, (res_size, res_size)) * spectral_scale / jnp.sqrt(res_size)
         self.W_in = jax.random.normal(k2, (res_size, in_features))
         self.fractional_operator = fractional_operator
         self.history_length = fractional_operator.history_length
+        self.alpha = fractional_operator.alpha
+        self.spectral_scale = spectral_scale
+        self.step_size = step_size
+        self.decay = decay
         self.E_crit = E_crit
         self.tau_b = tau_b
         self.gamma = gamma
@@ -137,10 +172,16 @@ class qSOCFractionalReservoir(eqx.Module):
 
         Returns ``(x_next, new_history, b_next)``.
         """
-        fractional_memory = self.fractional_operator(x_history[:-1])
+        op = self.fractional_operator
+        fractional_memory = op(x_history)
         current_state = x_history[0]
-        activation = jax.nn.sigmoid(self.W_res @ current_state + self.W_in @ u_t + b_t)
-        x_next = current_state - fractional_memory + activation
+        forcing = op.forcing_factor * self.step_size**self.alpha
+        activation = jnp.tanh(self.W_res @ current_state + self.W_in @ u_t + b_t)
+        x_next = (
+            op.leading * current_state
+            - fractional_memory
+            + forcing * (-self.decay * current_state + activation)
+        )
 
         # Homeostatic threshold update (explicit Euler step of the qSOC ODE).
         current_energy = jnp.mean(jnp.square(x_next))

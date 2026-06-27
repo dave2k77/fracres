@@ -19,7 +19,7 @@ def main():
     k_model, k_noise = jax.random.split(key)
 
     # Biologically relevant power-law memory kernel.
-    kernel = L1CaputoKernel(alpha=ALPHA, history_length=200, dt=0.005)
+    kernel = L1CaputoKernel(alpha=ALPHA, history_length=200)
 
     model = PhantomBrain(
         in_features=1,
@@ -27,6 +27,8 @@ def main():
         out_features=OUT_FEATURES,
         fractional_operator=kernel,
         key=k_model,
+        step_size=0.1,   # integration step h; activation scaled by h^alpha
+        decay=1.0,       # node leak lambda (ensures Echo State Property)
     )
 
     # fBm increments as the stochastic drive, shape (TIME_STEPS, 1).

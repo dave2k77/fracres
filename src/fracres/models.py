@@ -30,10 +30,12 @@ class PhantomBrain(eqx.Module):
         fractional_operator: AbstractFractionalKernel,
         key: jax.Array,
         spectral_scale: float = 0.95,
+        step_size: float = 0.1,
+        decay: float = 1.0,
     ):
         k1, k2 = jax.random.split(key)
         self.reservoir = FractionalReservoir(
-            in_features, res_size, fractional_operator, k1, spectral_scale
+            in_features, res_size, fractional_operator, k1, spectral_scale, step_size, decay
         )
         self.readout = TopologicalReadout(res_size, out_features, k2)
 
@@ -72,13 +74,17 @@ class qSOCPhantomBrain(eqx.Module):
         out_features: int,
         fractional_operator: AbstractFractionalKernel,
         key: jax.Array,
+        spectral_scale: float = 0.95,
+        step_size: float = 0.1,
+        decay: float = 1.0,
         E_crit: float = 1.0,
         tau_b: float = 1.0,
         gamma: float = 1.0,
     ):
         k1, k2 = jax.random.split(key)
         self.reservoir = qSOCFractionalReservoir(
-            in_features, res_size, fractional_operator, k1, E_crit, tau_b, gamma
+            in_features, res_size, fractional_operator, k1,
+            spectral_scale, step_size, decay, E_crit, tau_b, gamma,
         )
         self.readout = TopologicalReadout(res_size, out_features, k2)
 
