@@ -94,3 +94,53 @@ def train_step(
     updates, opt_state = optimizer.update(grads, opt_state, diff)
     model = eqx.apply_updates(model, updates)
     return model, opt_state, loss
+
+
+# --- Closed-form ridge readout (knowledge base v2 §6.3) ------------------------
+#
+# When the topological (Besov) prior is not needed, the linear readout has a
+# closed-form Tikhonov solution -- far faster and more stable than gradient
+# descent. Still only ``W_out`` is fitted; the reservoir stays frozen.
+
+
+def fit_ridge_readout(X_states, Y_target, beta, washout=0):
+    """Closed-form ridge (Tikhonov) readout weights.
+
+    Minimises ``||X W_out^T - Y||^2 + beta ||W_out||^2`` in closed form::
+
+        W_out^T = (X^T X + beta I)^{-1} X^T Y
+
+    Parameters
+    ----------
+    X_states : array, shape ``(T, N)``
+        Reservoir states over time (``N = res_size``).
+    Y_target : array, shape ``(T, out)``
+        Targets aligned with ``X_states``.
+    beta : float
+        Ridge regularisation strength (``> 0``; conditions the ``N x N`` solve).
+    washout : int, default 0
+        Number of initial transient steps to discard before fitting.
+
+    Returns
+    -------
+    array, shape ``(out, N)``
+        The readout matrix ``W_out`` (same layout as ``TopologicalReadout.W_out``).
+    """
+    X = X_states[washout:]
+    Y = Y_target[washout:]
+    n = X.shape[1]
+    gram = X.T @ X + beta * jnp.eye(n, dtype=X.dtype)  # (N, N)
+    return jnp.linalg.solve(gram, X.T @ Y).T  # (out, N)
+
+
+def fit_readout_ridge(model, U_drive, Y_target, beta, washout=0, **simulate_kwargs):
+    """Fit ``model.readout.W_out`` in closed form and return the updated model.
+
+    Simulates the (frozen) reservoir over ``U_drive`` to collect states, solves
+    the ridge system, and substitutes the result via :func:`equinox.tree_at`. The
+    reservoir/kernel weights are untouched. Works for both ``PhantomBrain`` and
+    ``qSOCPhantomBrain`` (extra ``simulate`` kwargs such as ``dt`` are forwarded).
+    """
+    X_states = model.simulate(U_drive, **simulate_kwargs)[0]
+    W_out = fit_ridge_readout(X_states, Y_target, beta, washout)
+    return eqx.tree_at(lambda m: m.readout.W_out, model, W_out)

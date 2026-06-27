@@ -17,6 +17,8 @@ from fracres.reservoirs import FractionalReservoir, qSOCFractionalReservoir
 from fracres.training import (
     besov_indices,
     compute_loss,
+    fit_readout_ridge,
+    fit_ridge_readout,
     readout_filter_spec,
     train_step,
 )
@@ -44,6 +46,8 @@ __all__ = [
     "train_step",
     "besov_indices",
     "readout_filter_spec",
+    "fit_ridge_readout",
+    "fit_readout_ridge",
     "analytic_power_law_derivative",
     "convergence_order",
     "mittag_leffler",

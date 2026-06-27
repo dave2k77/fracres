@@ -43,8 +43,12 @@ priority; check items off as they land.
 ## Now — make the core solid
 - [ ] **Spectral-radius control**: measure and set $\rho(W_\mathrm{res})$
       explicitly instead of relying on the `0.95/sqrt(N)` heuristic.
-- [ ] **Closed-form ridge readout** (Tikhonov) as an alternative to the
-      gradient-trained readout — knowledge base §1.4.
+- [x] **Closed-form ridge readout** (Tikhonov, KB v2 §6.3 / §1.4). Added
+      `training.fit_ridge_readout` (pure `(out, N)` solve) and
+      `fit_readout_ridge(model, ...)` (simulate → fit → `tree_at` the readout,
+      reservoir frozen). `examples/fit_ridge_readout.py` shows the memory task
+      (test corr 0.82→0.51 over delays 1→10). Possible extension: augment the
+      readout with `[x; u]` / a bias term (KB §1.2).
 - [ ] Wire `training.train_step` into an end-to-end fit example with a target
       signal; confirm only the readout updates.
 
