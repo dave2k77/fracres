@@ -32,10 +32,15 @@ priority; check items off as they land.
       (1.68/1.50/1.30/1.10 for $\alpha$=0.3/0.5/0.7/0.9) — confirming the L1
       telescoped weights and `Gamma(2-alpha)` forcing are correct.
 
+- [x] **Validated on the Mittag-Leffler eigenfunction** ($x(0)=1$, exercising the
+      Caputo-vs-RL distinction). Added `validation.mittag_leffler`; tests confirm
+      GL reproduces the Riemann-Liouville derivative
+      $\lambda E_\alpha + t^{-\alpha}/\Gamma(1-\alpha)$ (~1e-3), and both kernels
+      recover the Caputo eigenvalue $\lambda E_\alpha$ via
+      $D^\alpha_C f = D^\alpha_{RL}(f-f(0))$ (~1e-4). Verified the ML series
+      against the $\alpha=1/2$ closed form $e^{z^2}\mathrm{erfc}(-z)$.
+
 ## Now — make the core solid
-- [ ] **Validate against more signals.** Power law is exact; add exponentials /
-      Mittag-Leffler (the eigenfunction of $D^\alpha$) and non-zero initial
-      conditions to exercise the Caputo-vs-RL distinction.
 - [ ] **Spectral-radius control**: measure and set $\rho(W_\mathrm{res})$
       explicitly instead of relying on the `0.95/sqrt(N)` heuristic.
 - [ ] **Closed-form ridge readout** (Tikhonov) as an alternative to the

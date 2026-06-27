@@ -18,6 +18,34 @@ import jax.numpy as jnp
 from jax.scipy.special import gamma
 
 
+def mittag_leffler(z, alpha: float, terms: int = 128):
+    """One-parameter Mittag-Leffler function ``E_alpha(z) = sum_k z^k / Gamma(a k + 1)``.
+
+    The eigenfunction of the Caputo derivative: ``x(t) = E_alpha(lambda t^alpha)``
+    solves the fractional relaxation equation ``D^alpha_C x = lambda x`` with
+    ``x(0) = 1``. Used to validate the kernels on a signal with non-zero initial
+    value (unlike the power law), which exercises the Caputo-vs-Riemann-Liouville
+    distinction.
+
+    Truncated power series (``terms`` terms). Accurate for moderate ``|z|`` in
+    float64; for large ``|z|`` the alternating series loses precision -- keep
+    ``lambda t^alpha`` within a few units (or raise ``terms``). For ``alpha = 0.5``
+    there is the closed form ``E_{1/2}(z) = exp(z^2) erfc(-z)`` (used in tests).
+
+    Parameters
+    ----------
+    z : array or float
+        Argument(s).
+    alpha : float
+        Order (``> 0``).
+    terms : int
+        Number of series terms.
+    """
+    z = jnp.asarray(z)
+    k = jnp.arange(terms)  # integer exponents preserve negative-base sign
+    return jnp.sum(z[..., None] ** k / gamma(alpha * k + 1.0), axis=-1)
+
+
 def analytic_power_law_derivative(t, alpha: float, beta: float):
     """Closed-form ``D^alpha t^beta = Gamma(b+1)/Gamma(b+1-a) * t^(b-a)``.
 

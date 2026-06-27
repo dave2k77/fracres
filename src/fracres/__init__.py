@@ -20,7 +20,11 @@ from fracres.training import (
     readout_filter_spec,
     train_step,
 )
-from fracres.validation import analytic_power_law_derivative, convergence_order
+from fracres.validation import (
+    analytic_power_law_derivative,
+    convergence_order,
+    mittag_leffler,
+)
 
 __version__ = "0.1.0a0"
 
@@ -42,5 +46,6 @@ __all__ = [
     "readout_filter_spec",
     "analytic_power_law_derivative",
     "convergence_order",
+    "mittag_leffler",
     "__version__",
 ]
