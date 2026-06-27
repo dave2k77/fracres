@@ -59,6 +59,51 @@ class AbstractFractionalKernel(eqx.Module):
         # weights are w_2..w_L; x_history[1:] are x_{k-2}..x_{k-L}.
         return jnp.einsum("j,jk->k", self.weights, x_history[1:])
 
+    def apply(self, signal: jnp.ndarray, step_size: float) -> jnp.ndarray:
+        """Estimate the fractional derivative ``D^alpha signal`` on a uniform grid.
+
+        Reconstructs the *full* discrete operator from the stored
+        ``leading``/``weights``/``forcing_factor`` and applies it as a causal FIR
+        filter::
+
+            a = [1, -leading, w_2, ..., w_L]
+            D^alpha x_k ~= (1 / (forcing_factor * h^alpha))
+                           * sum_{j=0}^{min(k, L)} a_j x_{k-j}
+
+        For Grünwald-Letnikov this recovers ``a = [c_0, c_1, ..., c_L]`` exactly
+        (``c_1 = -leading = -alpha``); for the L1 scheme it recovers the
+        telescoped coefficients ``[1, b_1 - 1, b_2 - b_1, ...]``. This is the
+        operator view of the kernel, decoupled from the reservoir recurrence, and
+        is what the validation suite checks against the analytic ``D^alpha t^beta``.
+
+        Parameters
+        ----------
+        signal : array, shape ``(T,)`` or ``(T, channels)``
+            Samples ``x(t_k)`` on a uniform grid ``t_k = k * step_size``.
+        step_size : float
+            Grid spacing ``h``.
+
+        Returns
+        -------
+        array, same shape as ``signal``
+            Estimate of ``D^alpha x`` at each ``t_k``. Early samples (``k < L``)
+            are warm-up: a truncated history makes them inaccurate, and small-``t``
+            relative error is intrinsically larger.
+        """
+        a = jnp.concatenate([jnp.asarray([1.0, -self.leading], dtype=self.weights.dtype), self.weights])
+        scale = self.forcing_factor * step_size**self.alpha
+
+        def conv1d(x):
+            return jnp.convolve(x, a)[: x.shape[0]]
+
+        if signal.ndim == 1:
+            out = conv1d(signal)
+        elif signal.ndim == 2:
+            out = jax.vmap(conv1d, in_axes=1, out_axes=1)(signal)
+        else:
+            raise ValueError("signal must be 1-D (T,) or 2-D (T, channels)")
+        return out / scale
+
 
 class GLKernel(AbstractFractionalKernel):
     """Grünwald-Letnikov power-law memory operator.

@@ -24,10 +24,18 @@ priority; check items off as they land.
       so the written and implemented controllers agree. `simulate()` now also
       returns the `E` trajectory.
 
+- [x] **Validated the GL/L1 kernels** against the analytic $D^\alpha t^\beta$
+      (v2 §7.1). Added `kernels.apply()` (operator view), `validation.py`
+      (`analytic_power_law_derivative`, `convergence_order`),
+      `tests/test_validation.py`, and `examples/validate_kernels.py`. Measured
+      orders match theory exactly — GL $O(h)$ (order ≈1.00), L1 $O(h^{2-\alpha})$
+      (1.68/1.50/1.30/1.10 for $\alpha$=0.3/0.5/0.7/0.9) — confirming the L1
+      telescoped weights and `Gamma(2-alpha)` forcing are correct.
+
 ## Now — make the core solid
-- [ ] **Validate the GL/L1 kernels** against analytic fractional derivatives
-      (e.g. $D^\alpha t^\beta$) — port the validation style from `hpfracc`.
-      Confirm the L1 telescoped weights and `Gamma(2-alpha)` forcing are exact.
+- [ ] **Validate against more signals.** Power law is exact; add exponentials /
+      Mittag-Leffler (the eigenfunction of $D^\alpha$) and non-zero initial
+      conditions to exercise the Caputo-vs-RL distinction.
 - [ ] **Spectral-radius control**: measure and set $\rho(W_\mathrm{res})$
       explicitly instead of relying on the `0.95/sqrt(N)` heuristic.
 - [ ] **Closed-form ridge readout** (Tikhonov) as an alternative to the

@@ -20,6 +20,7 @@ from fracres.training import (
     readout_filter_spec,
     train_step,
 )
+from fracres.validation import analytic_power_law_derivative, convergence_order
 
 __version__ = "0.1.0a0"
 
@@ -39,5 +40,7 @@ __all__ = [
     "train_step",
     "besov_indices",
     "readout_filter_spec",
+    "analytic_power_law_derivative",
+    "convergence_order",
     "__version__",
 ]
