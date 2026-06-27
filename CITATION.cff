@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use fracres in published work, please cite the software."
+title: "fracres: Fractional Reservoir Computing for Critical Brain Dynamics"
+version: 0.1.0a0
+license: MIT
+repository-code: "https://github.com/dave2k77/fracres"
+authors:
+  - family-names: Chin
+    given-names: Davian Ricardo
+    orcid: "https://orcid.org/0009-0003-9434-3919"
+    affiliation: "University of Reading, School of Biological Sciences, Biomedical Engineering Division, Brain Embodiment Lab (BEL)"

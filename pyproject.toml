@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fracres"
+version = "0.1.0a0"
+description = "Fractional reservoir computing for critical (phantom) brain dynamics."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "Davian Ricardo Chin" },
+]
+keywords = [
+  "reservoir-computing",
+  "fractional-calculus",
+  "critical-brain-dynamics",
+  "neural-mass-models",
+  "besov-spaces",
+  "jax",
+  "equinox",
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
+]
+dependencies = [
+  "jax>=0.4.30",
+  "equinox>=0.11",
+  "optax>=0.2",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/dave2k77/fracres"
+Issues = "https://github.com/dave2k77/fracres/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fracres"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# Class names follow the fractional-calculus literature (qSOC, fBm, ...).
+ignore = ["E741"]
