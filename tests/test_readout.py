@@ -43,7 +43,8 @@ def test_fit_readout_ridge_improves_and_freezes():
     model = PhantomBrain(1, 64, 1, GLKernel(0.8, 50), key=key)
     T, delay, washout = 600, 3, 100
     drive = generate_fbm_increments(T, H=0.7, key=jax.random.PRNGKey(2))[:, None]
-    target = jnp.concatenate([jnp.zeros((delay, 1)), drive[:-delay]], axis=0)  # u_{t-delay}
+    # u_{t-delay}
+    target = jnp.concatenate([jnp.zeros((delay, 1)), drive[:-delay]], axis=0)
 
     W_res0 = model.reservoir.W_res
     mse_before = jnp.mean((model(drive)[washout:] - target[washout:]) ** 2)

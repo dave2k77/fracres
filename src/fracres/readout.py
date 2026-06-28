@@ -7,9 +7,9 @@ together with a topological (Besov) regulariser -- see :mod:`fracres.training`.
 """
 from __future__ import annotations
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 
 class TopologicalReadout(eqx.Module):

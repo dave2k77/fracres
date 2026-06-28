@@ -1,5 +1,7 @@
 # fracres
 
+[![CI](https://github.com/dave2k77/fracres/actions/workflows/ci.yml/badge.svg)](https://github.com/dave2k77/fracres/actions/workflows/ci.yml)
+
 **Fractional Reservoir Computing for Critical (Phantom) Brain Dynamics**
 
 `fracres` is a small [JAX](https://github.com/google/jax) /

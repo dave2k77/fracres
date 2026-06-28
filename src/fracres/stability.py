@@ -28,8 +28,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-import jax.numpy as jnp
 import equinox as eqx
+import jax.numpy as jnp
 
 
 def _reservoir_of(obj):
@@ -69,7 +69,7 @@ class MatignonDiagnostics(NamedTuple):
 
     @property
     def critical_alpha(self) -> float:
-        """Largest ``alpha`` for which this ``A`` is Matignon-stable (``2 min_arg/pi``)."""
+        """Largest ``alpha`` keeping this ``A`` Matignon-stable (``2 min_arg/pi``)."""
         return 2.0 * self.min_arg / 3.141592653589793
 
 

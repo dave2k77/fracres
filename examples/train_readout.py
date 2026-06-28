@@ -44,7 +44,8 @@ def _delayed_target(drive, delay):
 def main():
     key = jax.random.PRNGKey(0)
     k_model, k_train, k_test = jax.random.split(key, 3)
-    model = PhantomBrain(1, RES_SIZE, 1, GLKernel(alpha=0.8, history_length=100), key=k_model)
+    kernel = GLKernel(alpha=0.8, history_length=100)
+    model = PhantomBrain(1, RES_SIZE, 1, kernel, key=k_model)
 
     u_train = generate_fbm_increments(T, H=H_HURST, key=k_train)[:, None]
     u_test = generate_fbm_increments(T, H=H_HURST, key=k_test)[:, None]
@@ -80,7 +81,8 @@ def main():
     print("\nFrozen-weight check (readout-only training, KB v2 §6.2):")
     print(f"  W_res unchanged : {bool(jnp.allclose(model.reservoir.W_res, W_res0))}")
     print(f"  W_in  unchanged : {bool(jnp.allclose(model.reservoir.W_in, W_in0))}")
-    print(f"  kernel unchanged: {bool(jnp.allclose(model.reservoir.fractional_operator.weights, kernel0))}")
+    kernel_now = model.reservoir.fractional_operator.weights
+    print(f"  kernel unchanged: {bool(jnp.allclose(kernel_now, kernel0))}")
     print(f"  W_out  changed  : {bool(not jnp.allclose(model.readout.W_out, W_out0))}")
 
     test_corr = float(jnp.corrcoef(model(u_test)[:, 0], y_test[:, 0])[0, 1])

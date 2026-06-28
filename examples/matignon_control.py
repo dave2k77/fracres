@@ -36,7 +36,8 @@ def main():
         res = hot if sf is None else set_edge_of_chaos(hot, sf)
         d = matignon_diagnostics(res)
         tag = "start" if sf is None else f"{sf:.2f}"
-        print(f"{tag:>7} | {d.spectral_radius:>7.2f} {d.min_arg * 180 / 3.14159:>7.1f}d "
+        print(f"{tag:>7} | {d.spectral_radius:>7.2f} "
+              f"{d.min_arg * 180 / 3.14159:>7.1f}d "
               f"{d.margin:>+8.3f} {str(d.stable):>7}")
 
     # The fractional advantage: one fixed A whose least-stable mode sits ~75 deg
@@ -49,8 +50,8 @@ def main():
         if best is None or abs(min_arg - target) < abs(best - target):
             best = min_arg
     crit = 2.0 * best / 3.14159
-    print(f"\nSame matrix A (min|arg|={best * 180 / 3.14159:.1f} deg), Matignon-stable for"
-          f" alpha < {crit:.2f}:")
+    print(f"\nSame matrix A (min|arg|={best * 180 / 3.14159:.1f} deg), "
+          f"Matignon-stable for alpha < {crit:.2f}:")
     print(f"{'alpha':>6} {'threshold':>10} {'stable':>7}")
     for alpha in (0.5, 0.7, 0.9, 1.0):
         print(f"{alpha:>6} {alpha * 90:>8.0f}d {str(best > alpha * 3.14159 / 2):>7}")

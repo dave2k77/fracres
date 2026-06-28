@@ -3,12 +3,10 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
-import pytest
 
 from fracres import (
     GLKernel,
     NeuralFieldPhantomBrain,
-    NeuralFieldReservoir,
     fit_readout_ridge,
     generate_fbm_increments,
     make_dyadic_masks,

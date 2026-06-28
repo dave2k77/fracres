@@ -7,11 +7,11 @@ projecting each state through the readout.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
-
-from typing import Callable
 
 from fracres.kernels import AbstractFractionalKernel
 from fracres.readout import TopologicalReadout
@@ -42,7 +42,8 @@ class PhantomBrain(eqx.Module):
     ):
         k1, k2 = jax.random.split(key)
         self.reservoir = FractionalReservoir(
-            in_features, res_size, fractional_operator, k1, spectral_scale, step_size, decay
+            in_features, res_size, fractional_operator, k1,
+            spectral_scale, step_size, decay,
         )
         self.readout = TopologicalReadout(res_size, out_features, k2)
 
@@ -165,7 +166,7 @@ class WilsonCowanPhantomBrain(eqx.Module):
         return Y_hat
 
     def simulate(self, U_drive: jnp.ndarray):
-        """Return ``(X_states, Y_hat)`` -- stacked E/I states ``[E; I]`` and observables."""
+        """Return ``(X_states, Y_hat)`` -- stacked E/I states ``[E; I]`` and outputs."""
         n = self.reservoir.W_EE.shape[0]
 
         def step_fn(z_history, u_t):
@@ -222,7 +223,7 @@ class NeuralFieldPhantomBrain(eqx.Module):
         return Y_hat
 
     def simulate(self, U_drive: jnp.ndarray):
-        """Return ``(X_states, Y_hat)`` -- field snapshots over the sheet and observables."""
+        """Return ``(X_states, Y_hat)`` -- field snapshots and outputs."""
         n = self.reservoir.W_res.shape[0]
 
         def step_fn(u_history, u_t):

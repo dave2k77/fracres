@@ -19,7 +19,7 @@ from jax.scipy.special import gamma
 
 
 def mittag_leffler(z, alpha: float, terms: int = 128):
-    """One-parameter Mittag-Leffler function ``E_alpha(z) = sum_k z^k / Gamma(a k + 1)``.
+    """One-parameter Mittag-Leffler ``E_alpha(z) = sum_k z^k / Gamma(a k + 1)``.
 
     The eigenfunction of the Caputo derivative: ``x(t) = E_alpha(lambda t^alpha)``
     solves the fractional relaxation equation ``D^alpha_C x = lambda x`` with
@@ -62,8 +62,10 @@ def analytic_power_law_derivative(t, alpha: float, beta: float):
     return coeff * jnp.asarray(t) ** (beta - alpha)
 
 
-def convergence_order(err_coarse: float, err_fine: float, refinement: float = 2.0) -> float:
-    """Empirical order ``p`` from two errors at grid spacings differing by ``refinement``.
+def convergence_order(
+    err_coarse: float, err_fine: float, refinement: float = 2.0
+) -> float:
+    """Empirical order ``p`` from two errors at grids differing by ``refinement``.
 
     ``err ~ h^p`` implies ``p = log(err_coarse / err_fine) / log(refinement)``.
     """

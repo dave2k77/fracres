@@ -8,7 +8,7 @@ Littlewood-Paley characterisation: dyadic frequency-band filtering, computable i
 
 Regularity bounds (enforced by the caller, see :mod:`fracres.training`):
     integrability  p < alpha_S        (stability index of the heavy-tailed drive;
-                                        = 2 for Gaussian fGn -- NOT the derivative order)
+                                        = 2 for Gaussian fGn, NOT the deriv. order)
     smoothness     s < min{H, 1/p}    (fBm Hurst intersected with the Besov
                                         embedding scale 1/p)
 

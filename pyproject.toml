@@ -60,8 +60,16 @@ addopts = ["-ra", "--strict-markers"]
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+# docs/legacy_starter holds archived, intentionally-incomplete starter fragments.
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 # Class names follow the fractional-calculus literature (qSOC, fBm, ...).
 ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# x64 must be enabled immediately after importing jax, before later jax imports.
+"tests/test_readout.py" = ["E402"]
+"tests/test_validation.py" = ["E402"]
+"examples/validate_kernels.py" = ["E402"]

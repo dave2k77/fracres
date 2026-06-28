@@ -11,7 +11,6 @@ import jax
 jax.config.update("jax_enable_x64", True)  # GL coefficients need float64 at large L
 
 import jax.numpy as jnp
-
 from jax.scipy.special import gamma
 
 from fracres import (
@@ -38,15 +37,20 @@ def rel_error(kernel_cls, alpha, T, h):
 
 def power_law_table():
     print(f"\n### Power law  x(t) = t^{BETA}  (x(0)=0) ###")
-    for name, cls in [("GL  (expect O(h))", GLKernel), ("L1  (expect O(h^{2-a}))", L1CaputoKernel)]:
+    kinds = [
+        ("GL  (expect O(h))", GLKernel),
+        ("L1  (expect O(h^{2-a}))", L1CaputoKernel),
+    ]
+    for name, cls in kinds:
         print(f"\n=== {name} ===")
         print(f"{'alpha':>6} | {'relerr h=.02':>12} {'h=.01':>10} {'h=.005':>10} | "
               f"{'order':>6} {'2-a':>5}")
         for alpha in [0.3, 0.5, 0.7, 0.9]:
             errs = [rel_error(cls, alpha, T, h) for T, h in GRIDS]
-            order = convergence_order(errs[0], errs[-1], refinement=4.0)  # h: .02 -> .005
-            print(f"{alpha:>6.1f} | {errs[0]:>12.2e} {errs[1]:>10.2e} {errs[2]:>10.2e} | "
-                  f"{order:>6.2f} {2.0 - alpha:>5.2f}")
+            # refinement 4.0: h goes .02 -> .005
+            order = convergence_order(errs[0], errs[-1], refinement=4.0)
+            print(f"{alpha:>6.1f} | {errs[0]:>12.2e} {errs[1]:>10.2e} "
+                  f"{errs[2]:>10.2e} | {order:>6.2f} {2.0 - alpha:>5.2f}")
 
 
 def mittag_leffler_table():
@@ -56,9 +60,10 @@ def mittag_leffler_table():
     T, h = 4000, 0.005
     t = jnp.arange(T) * h
     k = int(EVAL_FRAC * T)
-    print(f"\n### Mittag-Leffler  x(t) = E_a({LAM} t^a)  (x(0)=1) @ t={float(t[k]):.1f} ###")
-    print(f"{'alpha':>6} | {'GL->RL relerr':>13} | {'GL->Caputo':>11} {'L1->Caputo':>11}  "
-          f"(via x - x(0))")
+    print(f"\n### Mittag-Leffler  x(t) = E_a({LAM} t^a)  (x(0)=1) "
+          f"@ t={float(t[k]):.1f} ###")
+    print(f"{'alpha':>6} | {'GL->RL relerr':>13} | {'GL->Caputo':>11} "
+          f"{'L1->Caputo':>11}  (via x - x(0))")
     for alpha in [0.3, 0.5, 0.7, 0.9]:
         sig = mittag_leffler(LAM * t**alpha, alpha)
         caputo_true = LAM * float(sig[k])

@@ -123,7 +123,11 @@ priority; check items off as they land.
 - [ ] Property-based tests (Hypothesis) for kernel invariants.
 - [ ] Benchmarks (`benchmarks/`) for scan throughput vs `res_size`, history `L`.
 - [ ] Config system (e.g. dataclass + YAML) for experiment specs.
-- [ ] CI (ruff + pytest) mirroring `hpfracc`.
+- [x] CI (ruff + pytest) mirroring `hpfracc`. `.github/workflows/ci.yml` runs a
+      `ruff check .` lint job and a `pytest` job across Python 3.11/3.12. Brought
+      the tree to ruff-clean under the existing `[tool.ruff]` config (E/F/I/UP/B):
+      `docs` excluded (archived starter fragments), per-file `E402` ignores for the
+      x64-config files, and ~50 line-wraps. README CI badge added.
 - [ ] Decide whether to back kernels with `hpfracc` for a single validated
       source of truth (currently self-contained — see kernels interface).
 

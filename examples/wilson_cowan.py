@@ -53,15 +53,20 @@ def main():
     X, _ = model.simulate(drive)
     E, I = model.split(X)
     print("Population activity over the run (sigmoid firing rate keeps it in [0,1]):")
-    print(f"  E: mean {E.mean():.3f}  std {E.std():.3f}  range [{E.min():.3f}, {E.max():.3f}]")
-    print(f"  I: mean {I.mean():.3f}  std {I.std():.3f}  range [{I.min():.3f}, {I.max():.3f}]")
-    print(f"  state finite: {bool(jnp.all(jnp.isfinite(X)))}  max|z|: {float(jnp.abs(X).max()):.3f}")
+    print(f"  E: mean {E.mean():.3f}  std {E.std():.3f}  "
+          f"range [{E.min():.3f}, {E.max():.3f}]")
+    print(f"  I: mean {I.mean():.3f}  std {I.std():.3f}  "
+          f"range [{I.min():.3f}, {I.max():.3f}]")
+    print(f"  state finite: {bool(jnp.all(jnp.isfinite(X)))}  "
+          f"max|z|: {float(jnp.abs(X).max()):.3f}")
 
     # 2. Inhibitory time constant vs reservoir memory (a separate-tau knob).
     print(f"\nDelayed-copy recall (delay {DELAY}) vs inhibitory time constant tau_I:")
     print(f"{'tau_I':>6} | {'test corr':>10}")
     for tau_I in (1.0, 2.0, 4.0, 8.0):
-        m = WilsonCowanPhantomBrain(1, N, 1, GLKernel(0.8, 80), key=k_model, tau_I=tau_I)
+        m = WilsonCowanPhantomBrain(
+            1, N, 1, GLKernel(0.8, 80), key=k_model, tau_I=tau_I
+        )
         m = fit_readout_ridge(m, drive[:SPLIT], target[:SPLIT], BETA, washout=WASHOUT)
         print(f"{tau_I:>6.1f} | {_test_corr(m, drive, target):>10.3f}")
 
@@ -73,7 +78,7 @@ def main():
         tgt = _delayed(drive, d)
         m = fit_readout_ridge(m, drive[:SPLIT], tgt[:SPLIT], BETA, washout=WASHOUT)
         print(f"{d:>6} | {_test_corr(m, drive, tgt):>10.3f}")
-    print("\n(corr -> 1 = perfect recall; it decays with delay, the fading-memory property.)")
+    print("\n(corr -> 1 = perfect recall; it decays with delay = fading memory.)")
 
 
 if __name__ == "__main__":

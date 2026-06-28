@@ -36,7 +36,7 @@ def _hf_fraction(y):
 
 
 def _smoothness(y):
-    """Estimated regularity: ``-`` slope of ``log2 ||Delta_j y||`` vs band index ``j``."""
+    """Estimated regularity: ``-`` slope of ``log2 ||Delta_j y||`` vs band ``j``."""
     e = np.asarray(dyadic_band_energies(y, MASKS))
     return float(-np.polyfit(np.arange(1, J + 1), np.log2(e + 1e-20), 1)[0])
 
@@ -48,7 +48,8 @@ def _fit(y0, lam, s, p=2.0, q=2.0, steps=300, lr=5e-2):
     state = opt.init(y)
 
     def loss(y):
-        return jnp.mean((y - y0) ** 2) + lam * littlewood_paley_penalty(y, MASKS, s, p, q)
+        mse = jnp.mean((y - y0) ** 2)
+        return mse + lam * littlewood_paley_penalty(y, MASKS, s, p, q)
 
     for _ in range(steps):
         grads = jax.grad(loss)(y)
@@ -88,14 +89,20 @@ def test_penalty_ranks_smoother_signal_lower():
     rough = _rough_signal()
     smooth = smooth / jnp.std(smooth)
     rough = rough / jnp.std(rough)
-    pen = lambda y: littlewood_paley_penalty(y, MASKS, s=1.0, p=2.0, q=2.0)
+
+    def pen(y):
+        return littlewood_paley_penalty(y, MASKS, s=1.0, p=2.0, q=2.0)
+
     assert float(pen(smooth)) < float(pen(rough))
 
 
 def test_penalty_grows_with_target_s_for_rough_signal():
     # Larger s weights high bands more, so a rough signal's penalty increases in s.
     rough = _rough_signal()
-    pens = [float(littlewood_paley_penalty(rough, MASKS, s, 2.0, 2.0)) for s in (0.5, 1.0, 2.0)]
+    pens = [
+        float(littlewood_paley_penalty(rough, MASKS, s, 2.0, 2.0))
+        for s in (0.5, 1.0, 2.0)
+    ]
     assert pens[0] < pens[1] < pens[2]
 
 

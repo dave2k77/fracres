@@ -18,11 +18,11 @@ Two variants are provided:
 """
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 from fracres.kernels import AbstractFractionalKernel
 
@@ -85,7 +85,10 @@ class FractionalReservoir(eqx.Module):
     ):
         k1, k2 = jax.random.split(key)
         # Random connectome scaled near the edge of chaos (spectral radius ~ 1).
-        self.W_res = jax.random.normal(k1, (res_size, res_size)) * spectral_scale / jnp.sqrt(res_size)
+        self.W_res = (
+            jax.random.normal(k1, (res_size, res_size))
+            * spectral_scale / jnp.sqrt(res_size)
+        )
         self.W_in = jax.random.normal(k2, (res_size, in_features))
         self.fractional_operator = fractional_operator
         self.history_length = fractional_operator.history_length
@@ -165,7 +168,10 @@ class qSOCFractionalReservoir(eqx.Module):
         tau_soc: float = 10.0,
     ):
         k1, k2 = jax.random.split(key)
-        self.W_res = jax.random.normal(k1, (res_size, res_size)) * spectral_scale / jnp.sqrt(res_size)
+        self.W_res = (
+            jax.random.normal(k1, (res_size, res_size))
+            * spectral_scale / jnp.sqrt(res_size)
+        )
         self.W_in = jax.random.normal(k2, (res_size, in_features))
         self.fractional_operator = fractional_operator
         self.history_length = fractional_operator.history_length

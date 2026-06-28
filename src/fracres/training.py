@@ -27,9 +27,9 @@ Initialise the optimiser over the *trainable partition only*::
 """
 from __future__ import annotations
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 from fracres.regularizers import littlewood_paley_penalty
 
@@ -78,7 +78,7 @@ def train_step(
     model, optimizer, opt_state, U_drive, Y_target, masks, H_hurst, lambda_reg,
     alpha_stable=2.0,
 ):
-    """One optimisation step updating *only* the readout. Returns ``(model, opt_state, loss)``.
+    """One step updating *only* the readout -> ``(model, opt_state, loss)``.
 
     The model is partitioned into a differentiable part (``readout.W_out``) and a
     frozen static part; gradients and optimiser updates touch the former only, so
@@ -88,7 +88,9 @@ def train_step(
 
     def loss_fn(diff):
         merged = eqx.combine(diff, static)
-        return compute_loss(merged, U_drive, Y_target, masks, H_hurst, lambda_reg, alpha_stable)
+        return compute_loss(
+            merged, U_drive, Y_target, masks, H_hurst, lambda_reg, alpha_stable
+        )
 
     loss, grads = eqx.filter_value_and_grad(loss_fn)(diff)
     updates, opt_state = optimizer.update(grads, opt_state, diff)

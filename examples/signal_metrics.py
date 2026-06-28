@@ -30,15 +30,19 @@ KEY = jax.random.PRNGKey(0)
 
 
 def main():
-    print("Long-range dependence -- estimator recovery on the fGn drive (mean of 4 runs):")
+    print("Long-range dependence -- estimator recovery on fGn (mean of 4 runs):")
     print(f"  {'(drive H)':<22} {'DFA':>9} {'beta':>10} {'2H-1':>8}")
     for H in (0.5, 0.6, 0.7, 0.8):
-        runs = [signal_metrics(np.asarray(generate_fbm_increments(T, H=H, key=jax.random.PRNGKey(s))))
-                for s in range(4)]
+        runs = [
+            signal_metrics(
+                np.asarray(generate_fbm_increments(T, H=H, key=jax.random.PRNGKey(s)))
+            )
+            for s in range(4)
+        ]
         dfa = np.mean([m.hurst_dfa for m in runs])
         beta = np.mean([m.spectral_beta for m in runs])
         print(f"  H={H:<20.1f} {dfa:>9.3f} {beta:>10.3f} {2 * H - 1:>8.2f}")
-    print("  (both estimators degrade as H -> 1 at finite length -- DFA-1's known limit.)")
+    print("  (both estimators degrade as H -> 1 at finite length -- a DFA-1 limit.)")
 
     # Does the reservoir impose long memory on a near-white drive? DFA is the
     # model-free LRD measure; H(spectral) assumes fGn, so it is only a cross-check
@@ -46,11 +50,13 @@ def main():
     print("\nReservoir transforms a near-white drive into a persistent output (DFA):")
     k_model, k_drive = jax.random.split(KEY)
     drive = np.asarray(generate_fbm_increments(T, H=0.5, key=k_drive))  # H=0.5, white
-    model = PhantomBrain(1, 200, 1, GLKernel(alpha=0.8, history_length=100), key=k_model)
+    kernel = GLKernel(alpha=0.8, history_length=100)
+    model = PhantomBrain(1, 200, 1, kernel, key=k_model)
     X, Y = model.simulate(drive[:, None])
+    out_h = signal_metrics(np.asarray(Y[:, 0])).hurst_dfa
     print(f"  drive (H=0.5):     DFA H={signal_metrics(drive).hurst_dfa:.3f}")
-    print(f"  reservoir output:  DFA H={signal_metrics(np.asarray(Y[:, 0])).hurst_dfa:.3f}"
-          "   (lifted above 0.5 -> the fractional node added long memory)")
+    print(f"  reservoir output:  DFA H={out_h:.3f}"
+          "   (lifted above 0.5 -> added long memory)")
 
     # Criticality: avalanche statistics of the population activity.
     print("\nCriticality -- avalanche statistics of the population activity:")

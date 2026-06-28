@@ -42,7 +42,8 @@ def fit(y0, lam, s, p=2.0, q=2.0, steps=400, lr=5e-2):
     state = opt.init(y)
 
     def loss(y):
-        return jnp.mean((y - y0) ** 2) + lam * littlewood_paley_penalty(y, MASKS, s, p, q)
+        mse = jnp.mean((y - y0) ** 2)
+        return mse + lam * littlewood_paley_penalty(y, MASKS, s, p, q)
 
     for _ in range(steps):
         g = jax.grad(loss)(y)

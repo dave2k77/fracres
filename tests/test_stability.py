@@ -1,7 +1,7 @@
 """Matignon-wedge stability diagnostics and spectral control (KB v2 §3.4)."""
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 import pytest
 
 from fracres import (
@@ -49,13 +49,17 @@ def test_edge_of_chaos_brackets_stability():
 
 def test_edge_margin_decreases_with_safety_factor():
     hot = set_spectral_radius(_reservoir(), 5.0)
-    margins = [matignon_diagnostics(set_edge_of_chaos(hot, sf)).margin for sf in (0.8, 0.9, 1.0)]
+    margins = [
+        matignon_diagnostics(set_edge_of_chaos(hot, sf)).margin
+        for sf in (0.8, 0.9, 1.0)
+    ]
     assert margins[0] > margins[1] > margins[2]  # closer to the edge => smaller margin
 
 
 def test_critical_alpha_consistency():
     # stable  <=>  alpha < critical_alpha  (both derived from the same min_arg).
-    d = matignon_diagnostics(set_edge_of_chaos(set_spectral_radius(_reservoir(), 5.0), 0.9))
+    hot = set_spectral_radius(_reservoir(), 5.0)
+    d = matignon_diagnostics(set_edge_of_chaos(hot, 0.9))
     assert d.stable == (d.alpha < d.critical_alpha)
 
 
@@ -63,7 +67,8 @@ def test_control_on_model_freezes_readout():
     model = PhantomBrain(1, 64, 3, GLKernel(0.7, 30), key=KEY)
     W_out0 = model.readout.W_out
     tuned = set_edge_of_chaos(model, 0.9)
-    assert not jnp.allclose(tuned.reservoir.W_res, model.reservoir.W_res)  # reservoir rescaled
+    # reservoir rescaled
+    assert not jnp.allclose(tuned.reservoir.W_res, model.reservoir.W_res)
     assert jnp.allclose(tuned.readout.W_out, W_out0)  # readout untouched
     assert matignon_diagnostics(tuned).stable
 

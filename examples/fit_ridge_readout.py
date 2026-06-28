@@ -22,7 +22,8 @@ SPLIT = int(0.7 * T)
 def main():
     key = jax.random.PRNGKey(0)
     k_model, k_noise = jax.random.split(key)
-    model = PhantomBrain(1, RES_SIZE, 1, GLKernel(alpha=0.8, history_length=100), key=k_model)
+    kernel = GLKernel(alpha=0.8, history_length=100)
+    model = PhantomBrain(1, RES_SIZE, 1, kernel, key=k_model)
 
     drive = generate_fbm_increments(T, H=0.7, key=k_noise)[:, None]
     X_states, _ = model.simulate(drive)  # frozen reservoir states (T, N)
@@ -32,7 +33,9 @@ def main():
         target = jnp.concatenate([jnp.zeros((delay, 1)), drive[:-delay]], axis=0)
 
         # Fit on the training segment only; evaluate on the held-out tail.
-        W_out = fit_ridge_readout(X_states[:SPLIT], target[:SPLIT], BETA, washout=WASHOUT)
+        W_out = fit_ridge_readout(
+            X_states[:SPLIT], target[:SPLIT], BETA, washout=WASHOUT
+        )
         Y_hat = X_states @ W_out.T
 
         train_mse = jnp.mean((Y_hat[WASHOUT:SPLIT] - target[WASHOUT:SPLIT]) ** 2)

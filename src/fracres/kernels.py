@@ -30,9 +30,9 @@ deliberate, documented departure from the literal coefficients written in
 """
 from __future__ import annotations
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 
 class AbstractFractionalKernel(eqx.Module):
@@ -90,7 +90,8 @@ class AbstractFractionalKernel(eqx.Module):
             are warm-up: a truncated history makes them inaccurate, and small-``t``
             relative error is intrinsically larger.
         """
-        a = jnp.concatenate([jnp.asarray([1.0, -self.leading], dtype=self.weights.dtype), self.weights])
+        head = jnp.asarray([1.0, -self.leading], dtype=self.weights.dtype)
+        a = jnp.concatenate([head, self.weights])
         scale = self.forcing_factor * step_size**self.alpha
 
         def conv1d(x):

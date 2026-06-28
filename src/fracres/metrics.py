@@ -18,11 +18,11 @@ Long-range dependence (LRD)
 
 Criticality
     Near a critical point, event sizes and durations are power-law distributed
-    (Beggs & Plenz 2003, neuronal avalanches). :func:`detect_avalanches` segments a
-    non-negative activity trace into supra-threshold excursions; :func:`power_law_exponent`
-    is the Clauset-Shalizi-Newman maximum-likelihood exponent; :func:`avalanche_exponents`
-    combines them into the size/duration exponents ``(tau, alpha)`` (critical
-    cortex sits near ``tau ~ 1.5``, ``alpha ~ 2.0``).
+    (Beggs & Plenz 2003, neuronal avalanches). :func:`detect_avalanches` segments
+    a non-negative activity trace into supra-threshold excursions;
+    :func:`power_law_exponent` is the Clauset-Shalizi-Newman maximum-likelihood
+    exponent; :func:`avalanche_exponents` combines them into the size/duration
+    exponents ``(tau, alpha)`` (critical cortex: ``tau ~ 1.5``, ``alpha ~ 2.0``).
 """
 from __future__ import annotations
 
@@ -31,10 +31,11 @@ from typing import NamedTuple
 
 import numpy as np
 
-
 # --- long-range dependence ----------------------------------------------------
 
-def _log_spaced_scales(n: int, s_min: int = 16, s_max: int | None = None, num: int = 20):
+def _log_spaced_scales(
+    n: int, s_min: int = 16, s_max: int | None = None, num: int = 20
+):
     """Unique, log-spaced integer window sizes in ``[s_min, s_max]`` (default ``n//8``).
 
     The bounds avoid DFA-1's two finite-sample artefacts: a small-scale crossover
@@ -87,7 +88,7 @@ def hurst_dfa(x, scales=None, order: int = 1) -> float:
 
 
 def power_spectral_density(x, n_segments: int = 8):
-    """Welch power spectral density ``(freqs, psd)`` (Hann window, no overlap, DC dropped).
+    """Welch PSD ``(freqs, psd)`` (Hann window, no overlap, DC dropped).
 
     Averaging over ``n_segments`` segments tames the periodogram's variance so the
     log-log slope fit is stable. Frequencies are in cycles/sample.
@@ -186,8 +187,9 @@ def detect_avalanches(activity, threshold=None):
     edges = np.diff(np.concatenate(([0], active.astype(int), [0])))
     starts = np.where(edges == 1)[0]
     ends = np.where(edges == -1)[0]
-    sizes = np.array([float(np.sum(a[s:e] - threshold)) for s, e in zip(starts, ends)])
-    durations = np.array([int(e - s) for s, e in zip(starts, ends)])
+    spans = list(zip(starts, ends, strict=True))
+    sizes = np.array([float(np.sum(a[s:e] - threshold)) for s, e in spans])
+    durations = np.array([int(e - s) for s, e in spans])
     return sizes, durations
 
 
