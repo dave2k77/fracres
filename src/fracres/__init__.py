@@ -10,13 +10,21 @@ from __future__ import annotations
 
 from fracres.drivers import generate_fbm_increments
 from fracres.kernels import AbstractFractionalKernel, GLKernel, L1CaputoKernel
-from fracres.models import PhantomBrain, WilsonCowanPhantomBrain, qSOCPhantomBrain
+from fracres.models import (
+    NeuralFieldPhantomBrain,
+    PhantomBrain,
+    WilsonCowanPhantomBrain,
+    qSOCPhantomBrain,
+)
 from fracres.readout import TopologicalReadout
 from fracres.regularizers import littlewood_paley_penalty, make_dyadic_masks
 from fracres.reservoirs import (
     FractionalReservoir,
+    NeuralFieldReservoir,
     WilsonCowanReservoir,
+    mexican_hat_kernel,
     qSOCFractionalReservoir,
+    ring_distance,
 )
 from fracres.stability import (
     MatignonDiagnostics,
@@ -49,10 +57,14 @@ __all__ = [
     "FractionalReservoir",
     "qSOCFractionalReservoir",
     "WilsonCowanReservoir",
+    "NeuralFieldReservoir",
+    "ring_distance",
+    "mexican_hat_kernel",
     "TopologicalReadout",
     "PhantomBrain",
     "qSOCPhantomBrain",
     "WilsonCowanPhantomBrain",
+    "NeuralFieldPhantomBrain",
     "generate_fbm_increments",
     "littlewood_paley_penalty",
     "make_dyadic_masks",

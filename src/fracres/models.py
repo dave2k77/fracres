@@ -17,6 +17,7 @@ from fracres.kernels import AbstractFractionalKernel
 from fracres.readout import TopologicalReadout
 from fracres.reservoirs import (
     FractionalReservoir,
+    NeuralFieldReservoir,
     WilsonCowanReservoir,
     qSOCFractionalReservoir,
 )
@@ -179,3 +180,55 @@ class WilsonCowanPhantomBrain(eqx.Module):
         """Split a stacked state trajectory into ``(E_states, I_states)``."""
         n = self.reservoir.W_EE.shape[0]
         return X_states[..., :n], X_states[..., n:]
+
+
+class NeuralFieldPhantomBrain(eqx.Module):
+    """Phantom brain with a spatial Amari neural-field reservoir (KB §2.2).
+
+    The reservoir state is the field ``u`` over the cortical sheet (the ring of
+    ``N`` sites); the readout maps the whole field to the observable.
+    ``simulate`` returns ``(X_states, Y_hat)`` like :class:`PhantomBrain`, so it
+    works unchanged with the training / closed-form-ridge utilities;
+    ``X_states[t]`` is the spatial field snapshot at step ``t``.
+    """
+
+    reservoir: NeuralFieldReservoir
+    readout: TopologicalReadout
+
+    def __init__(
+        self,
+        in_features: int,
+        n_nodes: int,
+        out_features: int,
+        fractional_operator: AbstractFractionalKernel,
+        key: jax.Array,
+        sigma_e: float = 2.0,
+        sigma_i: float = 4.0,
+        A_e: float = 1.0,
+        A_i: float = 0.5,
+        tau: float = 1.0,
+        step_size: float = 0.1,
+        firing_rate: Callable = jax.nn.sigmoid,
+    ):
+        k1, k2 = jax.random.split(key)
+        self.reservoir = NeuralFieldReservoir(
+            in_features, n_nodes, fractional_operator, k1,
+            sigma_e, sigma_i, A_e, A_i, tau, step_size, firing_rate,
+        )
+        self.readout = TopologicalReadout(n_nodes, out_features, k2)
+
+    def __call__(self, U_drive: jnp.ndarray) -> jnp.ndarray:
+        _, Y_hat = self.simulate(U_drive)
+        return Y_hat
+
+    def simulate(self, U_drive: jnp.ndarray):
+        """Return ``(X_states, Y_hat)`` -- field snapshots over the sheet and observables."""
+        n = self.reservoir.W_res.shape[0]
+
+        def step_fn(u_history, u_t):
+            u_next, updated = self.reservoir(u_t, u_history)
+            return updated, (u_next, self.readout(u_next))
+
+        init_history = jnp.zeros((self.reservoir.history_length, n))
+        _, (X_states, Y_hat) = jax.lax.scan(step_fn, init_history, U_drive)
+        return X_states, Y_hat

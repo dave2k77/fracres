@@ -80,8 +80,19 @@ priority; check items off as they land.
       works unchanged with the training / ridge utilities. `tests/test_wilson_cowan.py`
       (10) verify bounded dynamics, the separate-$\tau$ knobs, and the frozen-reservoir
       invariant; `examples/wilson_cowan.py` shows the E/I activity and fading memory.
-- [ ] **`NeuralFieldReservoir`** — spatial connectivity kernel over a cortical
-      sheet (currently a stub).
+- [x] **`NeuralFieldReservoir`** — spatial connectivity kernel over a cortical
+      sheet (Amari 1977, KB §2.2). Replaced the stub with the fractional Amari
+      field $\tau^\alpha\mathcal{D}^\alpha u = -u + w * \mathcal{S}(u) + W_{in}u_{ext}$
+      on a 1-D periodic ring: a distance-dependent **Mexican-hat** kernel
+      (`mexican_hat_kernel` / `ring_distance`, symmetric & circulant, near-zero DC
+      gain) replaces random links, and the firing-rate non-linearity sits *inside*
+      the convolution ($w * \mathcal{S}(u)$, the Amari signature). Same validated GL
+      update; readout reads the whole field, so `NeuralFieldPhantomBrain` works with
+      the training / ridge utilities. `tests/test_neural_field.py` (11) verify the
+      geometry, frozen connectivity, bounded dynamics, and that a white-noise drive
+      makes the field self-organise at the kernel's preferred wavelength;
+      `examples/neural_field.py` shows the kernel, spatial pattern selection, and
+      fading memory.
 - [ ] **Metrics module**: estimate $H$ / spectral slope of generated signals and
       compare to the drive; criticality diagnostics (avalanche statistics).
 - [ ] Validate the Besov regulariser actually moves trajectories toward the

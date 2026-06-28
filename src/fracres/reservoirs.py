@@ -334,15 +334,137 @@ class WilsonCowanReservoir(eqx.Module):
         return z_next, _roll_in(z_history, z_next)
 
 
-class NeuralFieldReservoir(eqx.Module):
-    """Spatially-extended neural *field* reservoir (Amari-type). Not yet implemented.
+def ring_distance(n_nodes: int) -> jnp.ndarray:
+    """Pairwise distance matrix on a 1-D periodic ring of ``n_nodes`` sites.
 
-    Placeholder for the continuum variant where ``W_res`` encodes a spatial
-    connectivity kernel over a cortical sheet rather than discrete random links.
+    ``d_{ij} = min(|i-j|, n_nodes-|i-j|)`` -- the shorter way round the ring, so
+    connectivity is translation-invariant (circulant) with no boundary.
+    """
+    idx = jnp.arange(n_nodes)
+    raw = jnp.abs(idx[:, None] - idx[None, :])
+    return jnp.minimum(raw, n_nodes - raw).astype(jnp.float32)
+
+
+def mexican_hat_kernel(
+    n_nodes: int, sigma_e: float, sigma_i: float, A_e: float, A_i: float
+) -> jnp.ndarray:
+    """Difference-of-Gaussians (Mexican-hat) connectivity on a ring.
+
+    ``w(d) = A_e exp(-d^2 / 2 sigma_e^2) - A_i exp(-d^2 / 2 sigma_i^2)`` with ``d``
+    the ring distance: short-range excitation, longer-range inhibition. Choosing
+    ``A_e sigma_e ~ A_i sigma_i`` makes the (continuum) row sum -- the DC / zero-
+    wavenumber gain -- vanish, so the kernel selects a spatial *pattern* (a peak in
+    its Fourier transform at a non-zero wavenumber) rather than a uniform mode.
+    """
+    d = ring_distance(n_nodes)
+    return A_e * jnp.exp(-(d**2) / (2.0 * sigma_e**2)) - A_i * jnp.exp(
+        -(d**2) / (2.0 * sigma_i**2)
+    )
+
+
+class NeuralFieldReservoir(eqx.Module):
+    """Spatially-extended fractional neural-*field* reservoir (Amari 1977; KB §2.2).
+
+    A continuum cortical sheet, discretised as ``N`` sites on a 1-D periodic ring,
+    whose recurrent connectivity is a distance-dependent **spatial kernel**
+    ``W_{ij} = w(d_{ij})`` (Mexican-hat by default) rather than the discrete random
+    links of :class:`FractionalReservoir`. The fractional Amari field equation is
+
+        tau^a D^a u(x,t) = -u(x,t) + [w * S(u)](x,t) + W_in u_ext(t)
+
+    i.e. the firing-rate non-linearity ``S`` sits **inside** the spatial
+    convolution (``w * S(u)``, the Amari signature), unlike ``f(W_res x + W_in u)``
+    where it wraps the whole synaptic sum. Writing it as ``D^a u = g`` with the RHS
+    divided by ``tau^a`` gives the driving term
+
+        g_k = ( -u_{k-1} + W_res S(u_{k-1}) + W_in u_ext ) / tau^a,
+
+    advanced with the same validated Grünwald-Letnikov update as the other
+    reservoirs (shared ``leading``/``weights``/``forcing_factor``)::
+
+        u_k = leading * u_{k-1} - sum_{j>=2} c_j u_{k-j} + forcing * h^a * g_k
+
+    The connectivity is fixed (translation-invariant, symmetric, circulant); the
+    Mexican-hat's center-surround structure makes the field develop spatial
+    structure at a preferred wavelength -- the field analogue of the edge of chaos.
+
+    Parameters
+    ----------
+    in_features : int
+        Dimension of the external drive ``u_ext`` (projected onto the sheet by
+        ``W_in``).
+    n_nodes : int
+        Number of sites ``N`` on the ring (the reservoir/state dimension).
+    fractional_operator : AbstractFractionalKernel
+        Shared memory kernel (fixes ``history_length`` and ``alpha_D``).
+    key : jax.Array
+        PRNG key for the input map ``W_in`` (the connectivity is deterministic).
+    sigma_e, sigma_i : float, default 2.0, 4.0
+        Excitatory / inhibitory Gaussian widths (in site units; ``sigma_i > sigma_e``
+        for center-surround).
+    A_e, A_i : float, default 1.0, 0.5
+        Excitatory / inhibitory amplitudes. The defaults give ``A_e sigma_e =
+        A_i sigma_i`` (near-zero DC gain -> pattern selection).
+    tau : float, default 1.0
+        Field time constant.
+    step_size : float, default 0.1
+        Integration step ``h``; the drive is scaled by ``h^alpha``.
+    firing_rate : callable, default ``jax.nn.sigmoid``
+        Population firing-rate non-linearity ``S``.
     """
 
-    def __init__(self, *args, **kwargs):  # pragma: no cover - intentional stub
-        raise NotImplementedError(
-            "NeuralFieldReservoir is a planned variant; see docs/knowledge_base.md "
-            "Section 2.2 (Neural Field Models)."
-        )
+    W_res: jnp.ndarray
+    W_in: jnp.ndarray
+    fractional_operator: AbstractFractionalKernel
+    history_length: int
+    alpha: float
+    tau: float
+    step_size: float
+    firing_rate: Callable = eqx.field(static=True)
+
+    def __init__(
+        self,
+        in_features: int,
+        n_nodes: int,
+        fractional_operator: AbstractFractionalKernel,
+        key: jax.Array,
+        sigma_e: float = 2.0,
+        sigma_i: float = 4.0,
+        A_e: float = 1.0,
+        A_i: float = 0.5,
+        tau: float = 1.0,
+        step_size: float = 0.1,
+        firing_rate: Callable = jax.nn.sigmoid,
+    ):
+        self.W_res = mexican_hat_kernel(n_nodes, sigma_e, sigma_i, A_e, A_i)
+        self.W_in = jax.random.normal(key, (n_nodes, in_features))
+        self.fractional_operator = fractional_operator
+        self.history_length = fractional_operator.history_length
+        self.alpha = fractional_operator.alpha
+        self.tau = tau
+        self.step_size = step_size
+        self.firing_rate = firing_rate
+
+    def __call__(self, u_t: jnp.ndarray, u_history: jnp.ndarray):
+        """Advance the field one step.
+
+        Parameters
+        ----------
+        u_t : array, shape ``(in_features,)``
+        u_history : array, shape ``(history_length, n_nodes)``
+            Rolling buffer of field states; row 0 is ``u_{k-1}``.
+
+        Returns
+        -------
+        (u_next, new_history)
+        """
+        op = self.fractional_operator
+        current = u_history[0]
+        # Amari recurrence: convolution of the firing rate, w * S(u).
+        synaptic = self.W_res @ self.firing_rate(current) + self.W_in @ u_t
+        g = (-current + synaptic) / self.tau**self.alpha
+
+        fractional_memory = op(u_history)
+        forcing = op.forcing_factor * self.step_size**self.alpha
+        u_next = op.leading * current - fractional_memory + forcing * g
+        return u_next, _roll_in(u_history, u_next)
