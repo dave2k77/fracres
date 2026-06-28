@@ -67,8 +67,19 @@ priority; check items off as they land.
       prior isn't needed.
 
 ## Next — scientific capability
-- [ ] **Excitatory/inhibitory neural-mass** reservoir (Wilson–Cowan form,
-      knowledge base §2.2) with separate $\tau_E^\alpha$, $\tau_I^\alpha$.
+- [x] **Excitatory/inhibitory neural-mass** reservoir (Wilson–Cowan form,
+      knowledge base §2.2) with separate $\tau_E^\alpha$, $\tau_I^\alpha$. Added
+      `reservoirs.WilsonCowanReservoir` and `models.WilsonCowanPhantomBrain`: two
+      populations stacked as $z=[E;I]$ (width $2N$) advanced by the *same*
+      validated GL update (shared `leading`/`weights`/`forcing_factor`, since they
+      depend only on $\alpha_D$), with per-population drive
+      $g_x=(-x+\mathcal{S}(\text{syn}))/\tau_x^{\alpha_D}$. Four non-negative
+      connectomes ($W_{EE},W_{EI},W_{IE},W_{II}$); E/I signs live in the equations;
+      input enters $E$ only. Firing rate defaults to a logistic sigmoid (the WC
+      standard) but is configurable. The readout sees the full E/I state, so it
+      works unchanged with the training / ridge utilities. `tests/test_wilson_cowan.py`
+      (10) verify bounded dynamics, the separate-$\tau$ knobs, and the frozen-reservoir
+      invariant; `examples/wilson_cowan.py` shows the E/I activity and fading memory.
 - [ ] **`NeuralFieldReservoir`** — spatial connectivity kernel over a cortical
       sheet (currently a stub).
 - [ ] **Metrics module**: estimate $H$ / spectral slope of generated signals and

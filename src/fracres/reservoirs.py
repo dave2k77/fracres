@@ -18,6 +18,8 @@ Two variants are provided:
 """
 from __future__ import annotations
 
+from typing import Callable
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -210,6 +212,126 @@ class qSOCFractionalReservoir(eqx.Module):
         ) / (1.0 + dt / self.tau_b)
 
         return x_next, _roll_in(x_history, x_next), b_next, e_next
+
+
+class WilsonCowanReservoir(eqx.Module):
+    """Fractional excitatory/inhibitory neural-mass reservoir (KB v2 §2.2).
+
+    ``N`` coupled Wilson-Cowan (1972) masses, each split into an excitatory ``E``
+    and an inhibitory ``I`` subpopulation sharing the fractional order
+    ``alpha_D`` but with **separate** time constants ``tau_E``, ``tau_I``::
+
+        tau_E^a D^a E = -E + S_E(W_EE E - W_EI I + W_in u)
+        tau_I^a D^a I = -I + S_I(W_IE E - W_II I)
+
+    Writing each line as ``D^a x = g`` with the RHS divided by ``tau^a`` gives a
+    population-wise driving term ``g_x = (-x_{k-1} + S(syn)) / tau_x^a`` -- so
+    ``1/tau_x^a`` plays the role of the node decay ``lambda`` in
+    :class:`FractionalReservoir`, scaling *both* the leak and the firing-rate
+    drive. The two populations are stacked into one state ``z = [E; I]`` of width
+    ``2N`` and advanced with the *same* validated Grünwald-Letnikov update as the
+    single-population reservoir (shared ``leading``/``weights``/``forcing_factor``,
+    since they depend only on ``alpha_D``)::
+
+        z_k = leading * z_{k-1} - sum_{j>=2} c_j z_{k-j} + forcing * h^a * g_k
+
+    The four connectomes hold **non-negative** synaptic magnitudes; the
+    excitatory/inhibitory signs are explicit in the equations above. The
+    firing-rate ``S`` is a logistic sigmoid by default (the Wilson-Cowan standard:
+    rates are non-negative), *not* the zero-centred ``tanh`` of the single-pop
+    reduction; the ``-x`` leak keeps the bounded positive drive from drifting.
+
+    Parameters
+    ----------
+    in_features : int
+        Dimension of the driving input ``u_t`` (injected into ``E`` only).
+    res_size : int
+        Number of masses ``N`` per population; the stacked state has width ``2N``.
+    fractional_operator : AbstractFractionalKernel
+        Shared memory kernel (fixes ``history_length`` and ``alpha_D``).
+    key : jax.Array
+        PRNG key for the four connectomes and the input map.
+    tau_E, tau_I : float, default 1.0, 2.0
+        Excitatory / inhibitory time constants (inhibition slower by default).
+    spectral_scale : float, default 0.95
+        Edge-of-chaos scaling applied to every connectome block (``~1/sqrt(N)``).
+    step_size : float, default 0.1
+        Integration step ``h``; the drive is scaled by ``h^alpha``.
+    firing_rate : callable, default ``jax.nn.sigmoid``
+        Population firing-rate non-linearity ``S`` (applied to both ``E`` and ``I``).
+    """
+
+    W_EE: jnp.ndarray
+    W_EI: jnp.ndarray
+    W_IE: jnp.ndarray
+    W_II: jnp.ndarray
+    W_in: jnp.ndarray
+    fractional_operator: AbstractFractionalKernel
+    history_length: int
+    alpha: float
+    tau_E: float
+    tau_I: float
+    spectral_scale: float
+    step_size: float
+    firing_rate: Callable = eqx.field(static=True)
+
+    def __init__(
+        self,
+        in_features: int,
+        res_size: int,
+        fractional_operator: AbstractFractionalKernel,
+        key: jax.Array,
+        tau_E: float = 1.0,
+        tau_I: float = 2.0,
+        spectral_scale: float = 0.95,
+        step_size: float = 0.1,
+        firing_rate: Callable = jax.nn.sigmoid,
+    ):
+        kEE, kEI, kIE, kII, kin = jax.random.split(key, 5)
+        scale = spectral_scale / jnp.sqrt(res_size)
+        # Non-negative synaptic magnitudes; E/I signs live in the update equations.
+        self.W_EE = jnp.abs(jax.random.normal(kEE, (res_size, res_size))) * scale
+        self.W_EI = jnp.abs(jax.random.normal(kEI, (res_size, res_size))) * scale
+        self.W_IE = jnp.abs(jax.random.normal(kIE, (res_size, res_size))) * scale
+        self.W_II = jnp.abs(jax.random.normal(kII, (res_size, res_size))) * scale
+        self.W_in = jax.random.normal(kin, (res_size, in_features))
+        self.fractional_operator = fractional_operator
+        self.history_length = fractional_operator.history_length
+        self.alpha = fractional_operator.alpha
+        self.tau_E = tau_E
+        self.tau_I = tau_I
+        self.spectral_scale = spectral_scale
+        self.step_size = step_size
+        self.firing_rate = firing_rate
+
+    def __call__(self, u_t: jnp.ndarray, z_history: jnp.ndarray):
+        """Advance one step.
+
+        Parameters
+        ----------
+        u_t : array, shape ``(in_features,)``
+        z_history : array, shape ``(history_length, 2 * res_size)``
+            Rolling buffer of stacked states ``[E; I]``; row 0 is ``z_{k-1}``.
+
+        Returns
+        -------
+        (z_next, new_history)
+        """
+        op = self.fractional_operator
+        n = self.W_EE.shape[0]
+        current = z_history[0]
+        E_prev, I_prev = current[:n], current[n:]
+
+        syn_E = self.W_EE @ E_prev - self.W_EI @ I_prev + self.W_in @ u_t
+        syn_I = self.W_IE @ E_prev - self.W_II @ I_prev
+        g_E = (-E_prev + self.firing_rate(syn_E)) / self.tau_E**self.alpha
+        g_I = (-I_prev + self.firing_rate(syn_I)) / self.tau_I**self.alpha
+        g = jnp.concatenate([g_E, g_I])
+
+        fractional_memory = op(z_history)
+        forcing = op.forcing_factor * self.step_size**self.alpha
+        z_next = op.leading * current - fractional_memory + forcing * g
+        return z_next, _roll_in(z_history, z_next)
 
 
 class NeuralFieldReservoir(eqx.Module):

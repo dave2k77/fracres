@@ -11,9 +11,15 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
+from typing import Callable
+
 from fracres.kernels import AbstractFractionalKernel
 from fracres.readout import TopologicalReadout
-from fracres.reservoirs import FractionalReservoir, qSOCFractionalReservoir
+from fracres.reservoirs import (
+    FractionalReservoir,
+    WilsonCowanReservoir,
+    qSOCFractionalReservoir,
+)
 
 
 class PhantomBrain(eqx.Module):
@@ -116,3 +122,60 @@ class qSOCPhantomBrain(eqx.Module):
             step_fn, (init_history, init_bias, init_energy), U_drive
         )
         return X_states, Y_hat, B_thresholds, E_energy
+
+
+class WilsonCowanPhantomBrain(eqx.Module):
+    """Phantom brain with a fractional Wilson-Cowan E/I neural-mass reservoir.
+
+    The reservoir state is the stacked ``z = [E; I]`` (width ``2N``); the readout
+    sees the *full* E/I state, so both populations contribute to the observable.
+    ``simulate`` returns ``(X_states, Y_hat)`` exactly like :class:`PhantomBrain`
+    (so it works unchanged with the training / closed-form-ridge utilities); the
+    excitatory and inhibitory parts are ``X_states[:, :N]`` and ``X_states[:, N:]``.
+    Use :meth:`split` to separate them.
+    """
+
+    reservoir: WilsonCowanReservoir
+    readout: TopologicalReadout
+
+    def __init__(
+        self,
+        in_features: int,
+        res_size: int,
+        out_features: int,
+        fractional_operator: AbstractFractionalKernel,
+        key: jax.Array,
+        tau_E: float = 1.0,
+        tau_I: float = 2.0,
+        spectral_scale: float = 0.95,
+        step_size: float = 0.1,
+        firing_rate: Callable = jax.nn.sigmoid,
+    ):
+        k1, k2 = jax.random.split(key)
+        self.reservoir = WilsonCowanReservoir(
+            in_features, res_size, fractional_operator, k1,
+            tau_E, tau_I, spectral_scale, step_size, firing_rate,
+        )
+        # The readout reads the full stacked E/I state (width 2N).
+        self.readout = TopologicalReadout(2 * res_size, out_features, k2)
+
+    def __call__(self, U_drive: jnp.ndarray) -> jnp.ndarray:
+        _, Y_hat = self.simulate(U_drive)
+        return Y_hat
+
+    def simulate(self, U_drive: jnp.ndarray):
+        """Return ``(X_states, Y_hat)`` -- stacked E/I states ``[E; I]`` and observables."""
+        n = self.reservoir.W_EE.shape[0]
+
+        def step_fn(z_history, u_t):
+            z_next, updated = self.reservoir(u_t, z_history)
+            return updated, (z_next, self.readout(z_next))
+
+        init_history = jnp.zeros((self.reservoir.history_length, 2 * n))
+        _, (X_states, Y_hat) = jax.lax.scan(step_fn, init_history, U_drive)
+        return X_states, Y_hat
+
+    def split(self, X_states: jnp.ndarray):
+        """Split a stacked state trajectory into ``(E_states, I_states)``."""
+        n = self.reservoir.W_EE.shape[0]
+        return X_states[..., :n], X_states[..., n:]
