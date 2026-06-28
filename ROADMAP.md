@@ -106,8 +106,18 @@ priority; check items off as they land.
       DFA-1 limit), MLE exponent recovery, and avalanche detection;
       `examples/signal_metrics.py` characterises drive vs reservoir output and shows
       the reservoir lifts a white drive's $H$ above 0.5.
-- [ ] Validate the Besov regulariser actually moves trajectories toward the
-      target $B^s_{p,q}$ regularity.
+- [x] Validate the Besov regulariser actually moves trajectories toward the
+      target $B^s_{p,q}$ regularity. Exposed `regularizers.dyadic_band_energies`
+      (the per-band $\lVert\Delta_j Y\rVert_p$ building block, now reused by
+      `littlewood_paley_penalty`) as a regularity diagnostic. `tests/test_regularizer_validation.py`
+      (8) verify the Littlewood-Paley machinery (a single-band cosine deposits its
+      energy in the right band; band powers reconstruct the total via Parseval),
+      that the penalty ranks smoother signals lower and grows with the target $s$,
+      and the operational claim: minimising $\mathrm{MSE}+\lambda B^s_{p,q}$ on a
+      rough trajectory collapses its high-frequency bands and **the achieved
+      regularity tracks the target $s$** (smoothness $\approx s$). `examples/besov_regularization.py`
+      shows the band-energy collapse, the $s$-tracking, and the indices
+      `besov_indices` derives from a drive's $H$ (with $1/p$ binding at large $H$).
 
 ## Later — rigour & reproducibility
 - [ ] Property-based tests (Hypothesis) for kernel invariants.

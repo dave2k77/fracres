@@ -29,7 +29,11 @@ from fracres.models import (
     qSOCPhantomBrain,
 )
 from fracres.readout import TopologicalReadout
-from fracres.regularizers import littlewood_paley_penalty, make_dyadic_masks
+from fracres.regularizers import (
+    dyadic_band_energies,
+    littlewood_paley_penalty,
+    make_dyadic_masks,
+)
 from fracres.reservoirs import (
     FractionalReservoir,
     NeuralFieldReservoir,
@@ -79,6 +83,7 @@ __all__ = [
     "NeuralFieldPhantomBrain",
     "generate_fbm_increments",
     "littlewood_paley_penalty",
+    "dyadic_band_energies",
     "make_dyadic_masks",
     "compute_loss",
     "train_step",
