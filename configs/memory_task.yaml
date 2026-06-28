@@ -1,0 +1,26 @@
+# fracres experiment spec -- see fracres.config.ExperimentConfig.
+# Reproduces a fading-memory (delayed-copy) task on a single fractional reservoir.
+name: memory_task
+seed: 0
+
+kernel:
+  kind: gl            # gl | l1
+  alpha: 0.8          # fractional-derivative order, in (0, 1)
+  history_length: 100
+
+model:
+  kind: phantom       # phantom | qsoc | wilson_cowan | neural_field
+  in_features: 1
+  res_size: 300
+  out_features: 1
+  params:             # variant-specific reservoir kwargs
+    spectral_scale: 0.95
+
+drive:
+  time_steps: 3000
+  hurst: 0.7          # long-range dependence of the fGn drive
+
+training:
+  method: ridge       # ridge | gradient
+  washout: 200
+  beta: 0.01          # ridge regularisation

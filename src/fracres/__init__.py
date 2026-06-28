@@ -8,6 +8,21 @@ See ``docs/knowledge_base.md`` for the theoretical framework.
 """
 from __future__ import annotations
 
+from fracres.config import (
+    DriveConfig,
+    ExperimentConfig,
+    KernelConfig,
+    ModelConfig,
+    TrainingConfig,
+    build_drive,
+    build_experiment,
+    build_kernel,
+    build_model,
+    from_dict,
+    load_config,
+    save_config,
+    to_dict,
+)
 from fracres.drivers import generate_fbm_increments
 from fracres.kernels import AbstractFractionalKernel, GLKernel, L1CaputoKernel
 from fracres.metrics import (
@@ -82,6 +97,19 @@ __all__ = [
     "WilsonCowanPhantomBrain",
     "NeuralFieldPhantomBrain",
     "generate_fbm_increments",
+    "ExperimentConfig",
+    "KernelConfig",
+    "ModelConfig",
+    "DriveConfig",
+    "TrainingConfig",
+    "load_config",
+    "save_config",
+    "from_dict",
+    "to_dict",
+    "build_kernel",
+    "build_model",
+    "build_drive",
+    "build_experiment",
     "littlewood_paley_penalty",
     "dyadic_band_energies",
     "make_dyadic_masks",

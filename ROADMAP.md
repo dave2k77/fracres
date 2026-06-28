@@ -140,7 +140,17 @@ priority; check items off as they land.
       `tests/performance/test_scan_scaling_perf.py` (sub-cubic in $N$, sub-quadratic
       in $L$) behind a `performance` marker that is deselected by default
       (`-m "not performance"`) and run in a non-gating `continue-on-error` CI job.
-- [ ] Config system (e.g. dataclass + YAML) for experiment specs.
+- [x] Config system (dataclass + YAML) for experiment specs. `fracres.config`
+      provides validated dataclasses (`ExperimentConfig` over `KernelConfig` /
+      `ModelConfig` / `DriveConfig` / `TrainingConfig`, each validating its fields
+      in `__post_init__`), YAML `save_config`/`load_config` + `to_dict`/`from_dict`
+      round-trip, and factories `build_kernel`/`build_model`/`build_drive`/
+      `build_experiment` that turn a spec (plus the integer `seed`) into the live
+      objects — variant-specific reservoir kwargs ride in `ModelConfig.params`. A
+      run is reproducible from one file: `configs/memory_task.yaml` +
+      `examples/config_experiment.py`. Adds `pyyaml` as a core dependency.
+      `tests/test_config.py` (23) cover validation, round-trip, the factories
+      across model variants, param forwarding, and seed reproducibility.
 - [x] CI (ruff + pytest) mirroring `hpfracc`. `.github/workflows/ci.yml` runs a
       `ruff check .` lint job and a `pytest` job across Python 3.11/3.12. Brought
       the tree to ruff-clean under the existing `[tool.ruff]` config (E/F/I/UP/B):
