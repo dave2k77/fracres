@@ -132,7 +132,14 @@ priority; check items off as they land.
       `forcing = Gamma(2-a)`, weights `< 0`. (Hypothesis flagged that GL `leading`
       equals `alpha` only to a float ULP — `c_1 = (1-(1+alpha))c_0` — so the test
       uses `isclose`, not `==`.)
-- [ ] Benchmarks (`benchmarks/`) for scan throughput vs `res_size`, history `L`.
+- [x] Benchmarks (`benchmarks/`) for scan throughput vs `res_size`, history `L`.
+      `benchmarks/scan_throughput.py` reports JIT-compiled, `block_until_ready`,
+      median-of-reps throughput as $N$ and $L$ sweep, with the fitted log-log
+      scaling exponent (measured ~1.2 in $N$ heading to the $O(N^2)$ connectome
+      term; ~0.5 in $L$). Mirrored in a performance-tier guard
+      `tests/performance/test_scan_scaling_perf.py` (sub-cubic in $N$, sub-quadratic
+      in $L$) behind a `performance` marker that is deselected by default
+      (`-m "not performance"`) and run in a non-gating `continue-on-error` CI job.
 - [ ] Config system (e.g. dataclass + YAML) for experiment specs.
 - [x] CI (ruff + pytest) mirroring `hpfracc`. `.github/workflows/ci.yml` runs a
       `ruff check .` lint job and a `pytest` job across Python 3.11/3.12. Brought

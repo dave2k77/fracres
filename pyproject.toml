@@ -57,7 +57,10 @@ packages = ["src/fracres"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers"]
+addopts = ["-ra", "--strict-markers", "-m", "not performance"]
+markers = [
+  "performance: timing/scaling guards, deselected by default (run with -m performance)",
+]
 
 [tool.ruff]
 line-length = 88
@@ -75,4 +78,6 @@ ignore = ["E741"]
 "tests/test_readout.py" = ["E402"]
 "tests/test_validation.py" = ["E402"]
 "tests/test_kernel_properties.py" = ["E402"]
+# Import follows pytest.importorskip("jax").
+"tests/performance/test_scan_scaling_perf.py" = ["E402"]
 "examples/validate_kernels.py" = ["E402"]
