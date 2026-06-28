@@ -10,6 +10,18 @@ from __future__ import annotations
 
 from fracres.drivers import generate_fbm_increments
 from fracres.kernels import AbstractFractionalKernel, GLKernel, L1CaputoKernel
+from fracres.metrics import (
+    AvalancheExponents,
+    SignalMetrics,
+    avalanche_exponents,
+    detect_avalanches,
+    dfa_fluctuation,
+    hurst_dfa,
+    power_law_exponent,
+    power_spectral_density,
+    signal_metrics,
+    spectral_exponent,
+)
 from fracres.models import (
     NeuralFieldPhantomBrain,
     PhantomBrain,
@@ -83,5 +95,15 @@ __all__ = [
     "analytic_power_law_derivative",
     "convergence_order",
     "mittag_leffler",
+    "hurst_dfa",
+    "dfa_fluctuation",
+    "spectral_exponent",
+    "power_spectral_density",
+    "signal_metrics",
+    "SignalMetrics",
+    "detect_avalanches",
+    "power_law_exponent",
+    "avalanche_exponents",
+    "AvalancheExponents",
     "__version__",
 ]

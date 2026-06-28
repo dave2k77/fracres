@@ -93,8 +93,19 @@ priority; check items off as they land.
       makes the field self-organise at the kernel's preferred wavelength;
       `examples/neural_field.py` shows the kernel, spatial pattern selection, and
       fading memory.
-- [ ] **Metrics module**: estimate $H$ / spectral slope of generated signals and
-      compare to the drive; criticality diagnostics (avalanche statistics).
+- [x] **Metrics module** (`metrics.py`). Long-range dependence: `hurst_dfa`
+      (DFA-1, scale range chosen to dodge the small-scale crossover and noisy top
+      scales) and `spectral_exponent` (log-binned low-frequency log-periodogram
+      regression — the band restriction and binning are essential, a full-band raw
+      fit is severely biased/noisy); `signal_metrics` bundles both with the spectral
+      estimate mapped onto the $H$ scale ($\beta = 2H-1$ for fGn). Criticality:
+      `detect_avalanches` (supra-threshold excursions), `power_law_exponent` (CSN
+      MLE), and `avalanche_exponents` $\to (\tau,\alpha)$. Pure NumPy (deterministic
+      under the suite's global x64). `tests/test_metrics.py` (14) verify recovery on
+      fGn of known $H$ (accurate to ~0.7; degrades as $H\to1$ at finite length — a
+      DFA-1 limit), MLE exponent recovery, and avalanche detection;
+      `examples/signal_metrics.py` characterises drive vs reservoir output and shows
+      the reservoir lifts a white drive's $H$ above 0.5.
 - [ ] Validate the Besov regulariser actually moves trajectories toward the
       target $B^s_{p,q}$ regularity.
 
