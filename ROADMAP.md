@@ -57,8 +57,14 @@ priority; check items off as they land.
       reservoir frozen). `examples/fit_ridge_readout.py` shows the memory task
       (test corr 0.82→0.51 over delays 1→10). Possible extension: augment the
       readout with `[x; u]` / a bias term (KB §1.2).
-- [ ] Wire `training.train_step` into an end-to-end fit example with a target
-      signal; confirm only the readout updates.
+- [x] Wire `training.train_step` into an end-to-end fit example with a target
+      signal; confirm only the readout updates. `examples/train_readout.py` drives
+      the full optax + Besov-regulariser loop on the delayed-copy memory task,
+      prints train/test curves (held-out corr ≈ 0.61 at delay 2), and asserts the
+      frozen-weight invariant: `W_res`/`W_in`/kernel weights come back identical,
+      only `readout.W_out` moves (KB v2 §6.2). Gradient descent converges slower
+      than the closed-form ridge, as expected — ridge is preferred when the Besov
+      prior isn't needed.
 
 ## Next — scientific capability
 - [ ] **Excitatory/inhibitory neural-mass** reservoir (Wilson–Cowan form,
