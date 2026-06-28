@@ -40,9 +40,11 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "pytest>=8.0",
+  "hypothesis>=6.0",
 ]
 dev = [
   "pytest>=8.0",
+  "hypothesis>=6.0",
   "ruff>=0.5",
 ]
 
@@ -72,4 +74,5 @@ ignore = ["E741"]
 # x64 must be enabled immediately after importing jax, before later jax imports.
 "tests/test_readout.py" = ["E402"]
 "tests/test_validation.py" = ["E402"]
+"tests/test_kernel_properties.py" = ["E402"]
 "examples/validate_kernels.py" = ["E402"]

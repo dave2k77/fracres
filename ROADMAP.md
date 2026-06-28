@@ -120,7 +120,18 @@ priority; check items off as they land.
       `besov_indices` derives from a drive's $H$ (with $1/p$ binding at large $H$).
 
 ## Later — rigour & reproducibility
-- [ ] Property-based tests (Hypothesis) for kernel invariants.
+- [x] Property-based tests (Hypothesis) for kernel invariants.
+      `tests/test_kernel_properties.py` (14) assert the *algebraic* operator
+      contract across all valid `(alpha, history_length)` — complementing the
+      fixed-parameter numerical checks in `test_validation.py`. Covers:
+      `weights` length, finiteness, deterministic construction, the strict-past
+      weighted-sum identity, row-0 (current-state) independence, and linearity of
+      both `__call__` and `apply`; plus the closed forms — GL `leading = alpha`,
+      `forcing = 1`, the `c_j` recursion, all strict-past weights `<= 0`, and the
+      linear-memory gain in `(0,1)` rising with `L`; L1 `leading = 2 - 2^{1-a}`,
+      `forcing = Gamma(2-a)`, weights `< 0`. (Hypothesis flagged that GL `leading`
+      equals `alpha` only to a float ULP — `c_1 = (1-(1+alpha))c_0` — so the test
+      uses `isclose`, not `==`.)
 - [ ] Benchmarks (`benchmarks/`) for scan throughput vs `res_size`, history `L`.
 - [ ] Config system (e.g. dataclass + YAML) for experiment specs.
 - [x] CI (ruff + pytest) mirroring `hpfracc`. `.github/workflows/ci.yml` runs a
