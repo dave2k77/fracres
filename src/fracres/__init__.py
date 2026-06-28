@@ -14,6 +14,14 @@ from fracres.models import PhantomBrain, qSOCPhantomBrain
 from fracres.readout import TopologicalReadout
 from fracres.regularizers import littlewood_paley_penalty, make_dyadic_masks
 from fracres.reservoirs import FractionalReservoir, qSOCFractionalReservoir
+from fracres.stability import (
+    MatignonDiagnostics,
+    matignon_diagnostics,
+    matignon_edge_scale,
+    set_edge_of_chaos,
+    set_spectral_radius,
+    system_matrix,
+)
 from fracres.training import (
     besov_indices,
     compute_loss,
@@ -48,6 +56,12 @@ __all__ = [
     "readout_filter_spec",
     "fit_ridge_readout",
     "fit_readout_ridge",
+    "MatignonDiagnostics",
+    "matignon_diagnostics",
+    "matignon_edge_scale",
+    "set_spectral_radius",
+    "set_edge_of_chaos",
+    "system_matrix",
     "analytic_power_law_derivative",
     "convergence_order",
     "mittag_leffler",

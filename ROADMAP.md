@@ -41,8 +41,16 @@ priority; check items off as they land.
       against the $\alpha=1/2$ closed form $e^{z^2}\mathrm{erfc}(-z)$.
 
 ## Now — make the core solid
-- [ ] **Spectral-radius control**: measure and set $\rho(W_\mathrm{res})$
-      explicitly instead of relying on the `0.95/sqrt(N)` heuristic.
+- [x] **Spectral-radius / Matignon control** (KB v2 §3.4). Added `stability.py`:
+      `matignon_diagnostics` (min$|\arg\lambda_i(A)|$ vs $\alpha\pi/2$, plus
+      $\rho(W)$ and $\sigma_\max(W)$ ESP diagnostics), `set_spectral_radius`
+      (measure/set $\rho$ explicitly instead of the `0.95/sqrt(N)` heuristic),
+      and the fractional edge-of-chaos control `matignon_edge_scale` /
+      `set_edge_of_chaos` (bisection to the wedge boundary; model variant freezes
+      the readout). `tests/test_stability.py` (10) and
+      `examples/matignon_control.py` demonstrate the fractional advantage: one
+      fixed $A$ is Matignon-stable for $\alpha < 0.84$, so the $\alpha=1$ classical
+      ESN is unstable while the fractional node is stable.
 - [x] **Closed-form ridge readout** (Tikhonov, KB v2 §6.3 / §1.4). Added
       `training.fit_ridge_readout` (pure `(out, N)` solve) and
       `fit_readout_ridge(model, ...)` (simulate → fit → `tree_at` the readout,
