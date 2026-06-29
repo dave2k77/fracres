@@ -79,6 +79,7 @@ ignore = ["E741"]
 "tests/test_readout.py" = ["E402"]
 "tests/test_validation.py" = ["E402"]
 "tests/test_kernel_properties.py" = ["E402"]
+"tests/test_hpfracc_crossref.py" = ["E402"]
 # Import follows pytest.importorskip("jax").
 "tests/performance/test_scan_scaling_perf.py" = ["E402"]
 "examples/validate_kernels.py" = ["E402"]

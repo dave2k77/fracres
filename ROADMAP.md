@@ -156,8 +156,25 @@ priority; check items off as they land.
       the tree to ruff-clean under the existing `[tool.ruff]` config (E/F/I/UP/B):
       `docs` excluded (archived starter fragments), per-file `E402` ignores for the
       x64-config files, and ~50 line-wraps. README CI badge added.
-- [ ] Decide whether to back kernels with `hpfracc` for a single validated
-      source of truth (currently self-contained — see kernels interface).
+- [x] Decide whether to back kernels with `hpfracc` for a single validated
+      source of truth. **Decision: cross-validate, do not couple.** The two
+      libraries are different operator *views* — `fracres` kernels are a
+      decomposed one-step *recurrence* (`leading`/`weights`/`forcing_factor`
+      advanced over a rolling buffer in the reservoir scan), while `hpfracc.ops`
+      is a *batch* full-history operator (whole signal → `D^alpha x`). The
+      underlying weight math is identical (GL binomial recursion; L1
+      `b_k = (k+1)^{1-a} - k^{1-a}`), but hpfracc's public API doesn't expose the
+      recurrence form the reservoir needs, and it is pre-alpha (provisional ops,
+      churning surface). Depending on it would couple `fracres` to a moving
+      target for no runtime gain. Instead, `tests/test_hpfracc_crossref.py`
+      asserts that `AbstractFractionalKernel.apply` reproduces
+      `hpfracc.ops.grunwald_letnikov` / `caputo` to ~1e-6 (all four `alpha`),
+      giving the "single source of truth" *assurance* with **zero** hard
+      dependency: the module `pytest.importorskip`s hpfracc, so it runs only
+      where hpfracc is installed and is skipped by default (incl. CI).
+      Revisit a real integration only if `fracres` needs capabilities hpfracc
+      already has — per-state/vector `alpha`, non-uniform grids, or
+      FFT/short-memory/SOE history acceleration.
 
 ## Open questions
 - Step size `h` (`step_size`) and decay `lambda` (`decay`) are currently fixed
