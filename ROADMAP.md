@@ -177,12 +177,39 @@ priority; check items off as they land.
       FFT/short-memory/SOE history acceleration.
 
 ## Open questions
-- Step size `h` (`step_size`) and decay `lambda` (`decay`) are currently fixed
-  defaults (0.1, 1.0). Treat them as first-class, possibly per-node, parameters
-  and study how they trade off against the kernel `leading` gain.
+- Step size `h` (`step_size`) and decay `lambda` (`decay`) — first-class status
+  (empirical study done; per-node deferred). Swept on the delayed-copy memory task
+  (GL `alpha=0.8`, `N=300`, 4 seeds); the conservative defaults (0.1, 1.0) leave
+  large headroom — held-out recall climbs from **0.64** to **0.95** at
+  `(h=0.4, lambda=2.0)`. Three findings:
+  1. The leak is *load-bearing*: `lambda=0` gives ~0 recall at every `h` (no
+     state-dependent dissipation → no usable fading memory), so `decay` is not a
+     minor trim.
+  2. `h` and `lambda` are **not** degenerate. The effective leading gain
+     `g_eff = leading - h^alpha * lambda` only partly organises recall
+     (`corr(recall, g_eff) = -0.68` over the working regime — a real trend, lower
+     `g_eff` → better recall, but not a clean single-variable collapse), because
+     `h` *also* scales the input drive `h^alpha * activation` while `lambda` does
+     not. Larger `h` therefore buys both more memory mixing and more input SNR.
+  3. Good performance lives on the low-`g_eff` side up to a stability edge: recall
+     peaks around `g_eff` in `[0, 0.2]`, and the reservoir diverges (state norm
+     `-> inf`, NaN recall) once `g_eff` goes strongly negative
+     (`h=0.4, lambda=4 -> g_eff=-1.12`).
+
+  Done: `configs/memory_task.yaml` now sets `step_size: 0.4`, `decay: 2.0`
+  explicitly (the study optimum). Still deferred: per-node vectors — the reservoir
+  scan already broadcasts, so per-node `decay`/`step_size` is a small change if a
+  task motivates it.
 - qSOC threshold now uses an unconditionally-stable semi-implicit step (resolved);
   the energy low-pass `E` still uses explicit Euler — fine as a 1st-order LPF, but
   pick `tau_soc` deliberately relative to `dt` and the dynamics timescale.
-- `generate_fbm_increments` standardises by empirical std — confirm this
-  preserves the intended fGn covariance closely enough, or switch to exact
-  Davies–Harte scaling.
+- `generate_fbm_increments` drive fidelity (resolved). Switched from dividing by
+  the per-realisation empirical std to the exact Davies–Harte scaling
+  (deterministic `sqrt(m)`, `m` the circulant-embedding length), so the drive now
+  has **unit variance in expectation** and the *exact* fGn autocovariance rather
+  than a per-draw-renormalised approximation (the empirical-std divide was
+  correlated with the sample and flattened the long-range dependence, worst at
+  large $H$). `tests/test_drivers.py` checks the realised autocovariance against
+  the analytic $r(k)$ for $H\in\{0.3,0.5,0.7,0.9\}$ (ensemble, uncentred), the
+  white-noise limit at $H=1/2$, persistence sign, and that per-draw variance
+  genuinely spreads about 1.

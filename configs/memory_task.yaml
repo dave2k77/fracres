@@ -15,6 +15,8 @@ model:
   out_features: 1
   params:             # variant-specific reservoir kwargs
     spectral_scale: 0.95
+    step_size: 0.4     # h: study optimum (ROADMAP OQ#1); recall 0.64->0.95 vs h=0.1
+    decay: 2.0         # lambda: leak is load-bearing; lambda=0 collapses recall to ~0
 
 drive:
   time_steps: 3000
