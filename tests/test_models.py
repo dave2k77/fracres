@@ -35,6 +35,10 @@ def test_qsoc_returns_thresholds():
 
 
 def test_fbm_increments_unit_variance():
+    # Exact Davies-Harte scaling gives unit variance *in expectation*, not
+    # exactly per draw (the old empirical-std normalisation forced std==1, which
+    # distorted the long-range dependence). A single 1000-sample draw therefore
+    # only lands near 1; the exact autocovariance is checked in test_drivers.py.
     fgn = generate_fbm_increments(1000, H=0.6, key=KEY)
     assert fgn.shape == (1000,)
-    assert jnp.isclose(jnp.std(fgn), 1.0, atol=1e-5)
+    assert jnp.isclose(jnp.std(fgn), 1.0, atol=0.15)

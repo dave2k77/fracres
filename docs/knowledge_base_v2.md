@@ -411,9 +411,11 @@ optimising.
    power spectrum with $\beta$ in the physiological range.
 5. **Regulariser efficacy.** Confirm the Besov penalty actually moves the
    estimated trajectory regularity toward the target $B^s_{p,q}$ (ROADMAP "Next").
-6. **Drive fidelity.** `generate_fbm_increments` standardises by empirical std;
-   verify the realised fGn autocovariance against the exact Davies–Harte target,
-   or switch to exact scaling (ROADMAP open question).
+6. **Drive fidelity.** `generate_fbm_increments` uses the exact Davies–Harte
+   scaling (deterministic $\sqrt{m}$, not a per-realisation empirical-std divide),
+   giving unit variance in expectation and the exact fGn autocovariance $r(k)$.
+   Verified in `tests/test_drivers.py` (ensemble autocovariance vs analytic
+   target for $H\in\{0.3,0.5,0.7,0.9\}$, white-noise limit, persistence sign).
 
 ---
 
