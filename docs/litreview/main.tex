@@ -1,0 +1,642 @@
+% Literature review: Fractional Reservoir Computing for Critical Brain Dynamics
+% Companion to the fracres library (https://github.com/dave2k77/fracres).
+% Build: tectonic main.tex   (or upload the folder to Overleaf)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{microtype}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\title{Fractional Reservoir Computing for Critical Brain Dynamics:\\
+       A Review of the Mathematical and Modelling Foundations}
+\author{D.~R.~Chin\\\small Companion document to the \texttt{fracres} library}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+The \texttt{fracres} library builds reservoir computers whose nodes carry
+fractional (power-law, non-Markovian) memory, driven by fractional Gaussian
+noise and regularised toward critical dynamics in a Besov/$L^p$ geometry, with
+the aim of generating and analysing synthetic macroscopic neural signals with
+realistic long-range dependence (LRD) and critical avalanche statistics. This
+review surveys the four bodies of theory the construction rests on ---
+(i)~fractional calculus and the stability of fractional-order systems,
+(ii)~reservoir computing and the echo-state/edge-of-chaos literature,
+(iii)~neural-mass and neural-field models and their fractional
+generalisations, and
+(iv)~critical brain dynamics, neuronal avalanches, self-organised and
+quasi-self-organised criticality with homeostatic control --- together with
+the mathematics of long-range dependence: self-similar processes, heavy tails,
+and wavelet/Besov estimation. For each area we state the definitions and
+theorems the library uses, summarise the neurophysiological evidence, and
+identify the open gaps the \texttt{fracres} programme is positioned to probe.
+All references were verified programmatically against publisher/Crossref,
+OpenAlex, or arXiv records in September 2026.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Introduction and scope}
+\label{sec:intro}
+
+Macroscopic neural signals --- EEG, MEG, local field potentials --- exhibit two
+statistical signatures that any generative model of brain dynamics must
+confront: \emph{long-range dependence} (power-law temporal correlations and
+$1/f$-type spectra persisting over hundreds of seconds
+\cite{linkenkaer2001long,he2014scale}) and \emph{criticality} (power-law
+distributions of neuronal avalanche sizes and durations, with exponents near
+the mean-field branching values $\tau \approx 1.5$ and $\alpha \approx 2.0$
+\cite{beggs2003neuronal,chialvo2010emergent}). Classical generative models
+struggle with both: reservoir computers forget exponentially
+\cite{jaeger2002memory}, neural-mass models relax exponentially
+\cite{jansen1995electroencephalogram}, and strict self-organised criticality
+requires conservation laws that brains do not obey \cite{bonachela2009self}.
+
+The \texttt{fracres} project takes the position that these failures share a
+common mathematical root: the dynamics are built from \emph{integer-order}
+(exponential-memory) operators, while the physics of neural tissue --- from
+single-neuron adaptation \cite{lundstrom2008fractional} to population
+filtering --- is better described by \emph{fractional-order} (power-law
+memory) operators. The library therefore places long memory in the
+\emph{nodes} of a reservoir computer via discrete fractional derivatives,
+drives the system with fractional Gaussian noise of tunable Hurst exponent,
+stabilises it at the fractional edge of chaos via Matignon's stability
+criterion, regulates it with a quasi-self-organised-criticality (qSOC)
+homeostat, and constrains its outputs to the Besov-regularity manifold that
+heavy-tailed long-memory signals inhabit. We call the resulting generative
+models \emph{phantom brains}: synthetic neural signal generators with known,
+controllable ground truth, intended both as hypothesis testbeds (which
+mechanisms produce which statistics?) and as calibration phantoms for
+estimators (which LRD/criticality estimator survives heavy tails and
+structural breaks?).
+
+This review assembles the theoretical foundations of that programme. Each
+section states the mathematics the code implements, reviews the supporting
+literature, and closes with the implications for the library. Citations were
+collected and verified programmatically; residual verification caveats are
+listed in Appendix~\ref{app:verification}.
+
+\paragraph{Organisation.}
+Section~\ref{sec:fractional}: fractional calculus, Mittag-Leffler relaxation,
+Matignon stability, and numerical schemes.
+Section~\ref{sec:rc}: reservoir computing, the echo state property, memory
+capacity, and the small but growing fractional-RC literature.
+Section~\ref{sec:masses}: neural-mass and neural-field models and their
+fractional-order generalisations.
+Section~\ref{sec:criticality}: neuronal avalanches, SOC, quasi-criticality,
+homeostasis, and E/I balance.
+Section~\ref{sec:lrd}: self-similar processes, LRD estimators, heavy tails,
+and the neural evidence.
+Section~\ref{sec:synthesis}: how the pieces assemble in \texttt{fracres}, and
+the open research questions.
+
+\section{Fractional calculus and fractional-order systems}
+\label{sec:fractional}
+
+\subsection{Definitions: Riemann--Liouville, Caputo, Gr\"unwald--Letnikov}
+
+Fractional calculus extends differentiation and integration to non-integer
+order; the modern standard references are Podlubny
+\cite{podlubny1999fractional}, Kilbas, Srivastava \& Trujillo
+\cite{kilbas2006theory}, and the classic treatment of Oldham \& Spanier
+\cite{oldham1974fractional}. For $0 < \alpha < 1$ the two derivatives used in
+\texttt{fracres} are the \emph{Caputo} derivative
+\begin{equation}
+  {}^C D^\alpha f(t) = \frac{1}{\Gamma(1-\alpha)}
+  \int_0^t \frac{f'(\tau)}{(t-\tau)^{\alpha}}\,d\tau,
+  \label{eq:caputo}
+\end{equation}
+which respects classical initial conditions $f(0)$, and the
+\emph{Gr\"unwald--Letnikov} (GL) derivative, defined directly as a limit of
+weighted differences,
+\begin{equation}
+  D^\alpha f(t) = \lim_{h \to 0} \frac{1}{h^\alpha}
+  \sum_{j=0}^{\lfloor t/h \rfloor} c_j^{(\alpha)} f(t - jh),
+  \qquad
+  c_0 = 1,\quad c_j = \Bigl(1 - \frac{1+\alpha}{j}\Bigr) c_{j-1},
+  \label{eq:gl}
+\end{equation}
+whose generalised-binomial weights $c_j^{(\alpha)}$ decay as a power law
+$j^{-\alpha-1}$ \cite{oldham1974fractional,scherer2011grunwald}. The contrast
+with integer order is the point: a first derivative is \emph{local} (two
+samples), while a fractional derivative is a \emph{convolution over the whole
+history} with a power-law kernel --- non-Markovian memory is definitional,
+not engineered. For power laws both derivatives agree with the closed form
+\begin{equation}
+  D^\alpha t^\beta =
+  \frac{\Gamma(\beta+1)}{\Gamma(\beta+1-\alpha)}\, t^{\beta-\alpha},
+  \qquad \beta > -1,
+  \label{eq:powerlaw}
+\end{equation}
+\cite[Eq.~2.117]{podlubny1999fractional}, which \texttt{fracres} uses as
+ground truth to validate its discrete kernels.
+
+\subsection{Mittag-Leffler relaxation}
+
+The eigenfunction of the Caputo derivative is the Mittag-Leffler function
+$E_\alpha(z) = \sum_{k\ge0} z^k/\Gamma(\alpha k + 1)$: $x(t) = E_\alpha(\lambda
+t^\alpha)$ solves ${}^C D^\alpha x = \lambda x$, $x(0)=1$
+\cite{podlubny1999fractional,gorenflo2014mittag}. Its asymptotics interpolate
+between a fast (stretched-exponential) initial decay and a power-law tail
+$x(t) \sim t^{-\alpha}$ \cite{gorenflo2014mittag,haubold2011mittag}: the
+impulse response of a fractional-order system \emph{is} the non-exponential
+fading-memory profile that neural LRD demands, in contrast to the exponential
+forgetting of integer-order reservoirs (Section~\ref{sec:rc}). The
+Caputo/Riemann--Liouville distinction matters in practice: with $x(0) \neq
+0$, ${}^C D^\alpha f = D^\alpha_{\mathrm{RL}}(f - f(0))$, a correction the
+library's validation suite exercises explicitly on the Mittag-Leffler
+eigenfunction.
+
+\subsection{Stability: Matignon's theorem}
+
+For the commensurate linear fractional system $D^\alpha x = A x$,
+$0<\alpha<1$, the stability criterion replaces the classical left-half-plane
+condition by an \emph{argument} condition:
+
+\begin{theorem}[Matignon \cite{matignon1996stability}]
+  The system $D^\alpha x = A x$ is asymptotically stable if and only if
+  every eigenvalue $\lambda_i$ of $A$ satisfies
+  \begin{equation}
+    |\arg(\lambda_i)| > \frac{\alpha \pi}{2}.
+    \label{eq:matignon}
+  \end{equation}
+\end{theorem}
+
+The unstable set is the cone of half-angle $\alpha\pi/2$ about the positive
+real axis. As $\alpha \to 1$ it fills the right half-plane, recovering the
+classical condition; for $\alpha < 1$ it \emph{shrinks}, so a
+fractional-order system tolerates eigenvalues with positive real part --- a
+strictly larger stable region \cite{matignon1996stability,matignon1998stability}.
+This is the fractional analogue of the echo-state spectral condition
+(Section~\ref{sec:rc}): it defines the wedge that the reservoir Jacobian
+$A = W_{\mathrm{res}} - \lambda I$ must respect, and it is the rigorous sense
+in which a fractional reservoir can sit closer to criticality --- with a
+``hotter'' connectome --- than its integer-order counterpart. Matignon's 1998
+extension covers non-commensurate (multi-order) systems
+\cite{matignon1998stability}, the relevant theory once nodes are allowed
+heterogeneous orders $\alpha_i$.
+
+\subsection{Numerical schemes}
+
+Two discretisations are implemented and validated in \texttt{fracres}. The
+\emph{GL scheme}~\eqref{eq:gl} is first-order, $O(h)$
+\cite{oldham1974fractional,scherer2011grunwald}; the \emph{L1 scheme} for the
+Caputo derivative interpolates $f'$ piecewise-linearly on each subinterval,
+giving weights $b_m = (m+1)^{1-\alpha} - m^{1-\alpha}$ and accuracy
+$O(h^{2-\alpha})$ \cite{linxu2007l1}. The library's measured convergence
+orders match both rates exactly (GL $\approx 1.00$; L1 $\approx 2-\alpha$ for
+$\alpha \in \{0.3, 0.5, 0.7, 0.9\}$), confirming the implementations against
+\eqref{eq:powerlaw}. For nonlinear node dynamics, the fractional
+Adams--Bashforth--Moulton predictor--corrector of Diethelm, Ford \& Freed is
+the standard higher-fidelity alternative \cite{diethelm2002predictor}; the
+engineering literature also supplies rational (Oustaloup/CRONE) approximations
+used to realise fractional operators in analogue and neuromorphic hardware
+\cite{monje2010fractional,podlubny1999controllers}. All schemes face the same
+practical issue: the full-history convolution is $O(TL)$, and truncation (the
+short-memory principle \cite{scherer2011grunwald}) trades accuracy for cost
+--- for hardware, the retained history at tolerance $\varepsilon$ scales as
+$\varepsilon^{-1/\alpha}$ \cite{teuscher2026hardware}.
+
+\subsection{Fractional-order reservoir computing}
+
+The fractional-RC literature is small but direct. Yao \& Wang introduced the
+first fractional-order echo state network, updating reservoir states through a
+GL-type fractional difference and reporting improved prediction on chaotic
+benchmarks \cite{yao2020fractional}. Goswami et al.\ prove the key theoretical
+separation: standard ESNs induce \emph{short-memory} processes, while a
+fractional-difference reservoir generates polynomially decaying autocorrelation
+consistent with statistical long memory \cite{goswami2026longmemory} ---
+precisely the property required to model LRD in neural signals. A 2026 review
+positions fractional-order RC as a general extension of the RC paradigm,
+covering the memory-capacity/fading-memory trade-off controlled by the order
+$\alpha$ \cite{mastin2026fractional}, and Teuscher's hardware analysis
+quantifies what physical fractional devices can deliver
+\cite{teuscher2026hardware}. Notably absent from the literature: any
+fractional reservoir targeted at \emph{critical} (avalanche) statistics, any
+coupling of fractional nodes to neural-mass/field equations, and any
+stochastic-drive (fGn) formulation --- the space \texttt{fracres} occupies.
+
+\paragraph{Implications for \texttt{fracres}.}
+The GL/L1 kernels (\texttt{kernels.py}) are validated against
+\eqref{eq:powerlaw} and the Mittag-Leffler eigenfunction; Matignon's
+criterion~\eqref{eq:matignon} is implemented as the edge-of-chaos control
+(\texttt{stability.py}); the demonstrated ``fractional advantage'' --- one
+connectome stable for $\alpha < 0.84$ where the $\alpha=1$ ESN diverges ---
+is a direct numerical exhibition of Theorem~\ref{eq:matignon}.
+
+\section{Reservoir computing}
+\label{sec:rc}
+
+\subsection{The reservoir/readout split}
+
+Reservoir computing trains only a linear readout of a fixed, randomly wired
+dynamical system. The two founding formulations are Jaeger's echo state
+networks (ESNs) \cite{jaeger2001echo,jaeger2002adaptive} and Maass,
+Natschl\"ager \& Markram's liquid state machines (LSMs)
+\cite{maass2002liquid}, shown to be instances of one framework by Verstraeten
+et al.\ \cite{verstraeten2007unification} and surveyed by Luko\v{s}evi\v{c}ius
+\& Jaeger \cite{lukosevicius2009survey}. Two ideas from the foundations carry
+directly into the present programme. First, the LSM's thesis that cortical
+microcircuits compute on \emph{transients} rather than attractors
+\cite{maass2002liquid} aligns with critical, avalanche-like dynamics.
+Second, the essential object is the reservoir/readout split itself, not the
+neuron model \cite{verstraeten2007unification} --- so replacing the node's
+dynamical law (integer $\to$ fractional) while keeping the split is a
+legitimate, minimal modification, which is what \texttt{fracres} does.
+
+\subsection{Echo state property and fading memory}
+
+A reservoir has the \emph{echo state property} (ESP) if its state is uniquely
+determined by the left-infinite input history \cite{jaeger2001echo}; the
+classical sufficient conditions bound the spectral radius (Jaeger) or, more
+tightly, the largest singular value of $W_{\mathrm{res}}$
+\cite{buehner2006tighter}. Yildiz, Jaeger \& Kiebel showed the ESP is
+input-dependent: for some inputs no scaling of a given reservoir has echo
+states \cite{yildiz2012echo}. Both theorems assume \emph{geometric}
+contraction --- their Lipschitz bounds do not directly apply to power-law
+memory, and re-establishing an ESP analogue under algebraic decay is an open
+theoretical task for fractional RC. In \texttt{fracres} the role of the
+contraction is played by the gain-normalised fractional update (unit linear
+memory gain) plus the leak $-\lambda x$, with Matignon's wedge as the
+linearised stability certificate; a formal fractional ESP proof remains
+future work (\texttt{goswami2026longmemory} proves the complementary result
+that fractional reservoirs \emph{do} produce long-memory stationary states
+\cite{goswami2026longmemory}).
+
+\subsection{Memory capacity}
+
+Jaeger's memory-capacity curve measures how well the readout reconstructs
+delayed inputs $u_{t-\tau}$; linear ESNs with $N$ units have total capacity
+$\le N$, with recall decaying \emph{exponentially} in the delay
+\cite{jaeger2002memory}. Dambre et al.\ generalised this to a full
+information-processing capacity over all polynomial functionals of the input,
+proving a conservation law: total capacity is bounded by the number of
+independent reservoir variables \cite{dambre2012capacity}. The design
+question for fractional RC is therefore not ``more capacity'' but
+\emph{redistribution}: power-law kernels trade short-delay recall for
+algebraically decaying long-delay recall within the same budget. The delayed-copy
+benchmarks in \texttt{fracres} (test correlation $0.82 \to 0.51$ over delays
+$1 \to 10$, and $0.64 \to 0.95$ after the $(h,\lambda)$ tuning study) measure
+exactly this curve.
+
+\subsection{Edge of chaos}
+
+Bertschinger \& Natschl\"ager showed that real-time reservoir computation
+peaks at the transition between ordered and chaotic dynamics --- the
+\emph{edge of chaos} \cite{bertschinger2004edge}; Legenstein \& Maass extended
+the analysis to biologically realistic circuits and proposed predicting
+performance from the Jacobian spectrum \cite{legenstein2007edge}. In
+classical RC the only route to the edge is tuning the spectral radius
+$\rho(W_{\mathrm{res}}) \to 1$. A fractional reservoir has a second axis: the
+order $\alpha$ moves the Matignon wedge~\eqref{eq:matignon}, so the
+\emph{same} connectome can be unstable at $\alpha=1$ and stable at
+$\alpha < 1$. Criticality tuning and memory tuning partially decouple --- a
+structural advantage that the classical framework lacks.
+
+\subsection{Modern context}
+
+Physical and delay-based reservoirs replace topological memory with dynamical
+memory in the substrate itself \cite{tanaka2019review,nakajima2021book} ---
+the closest classical analogue of the fractional design. Next-generation
+reservoir computing strips the reservoir to its memory-functional content
+(nonlinear vector autoregression) \cite{gauthier2021nextgen}: both a
+competitor and a natural host for fractional (long-memory) feature maps.
+
+\paragraph{Implications for \texttt{fracres}.}
+The library keeps the canonical split (frozen reservoir, trained linear
+readout, ridge or gradient) and the delayed-copy memory probe, but replaces
+the exponential-memory node with a fractional one and the spectral-radius
+edge-of-chaos knob with the Matignon wedge. The open theory items are a
+fractional ESP theorem and a capacity-redistribution theorem for power-law
+kernels.
+
+\section{Neural mass and neural field models}
+\label{sec:masses}
+
+\subsection{Classical models}
+
+The biological substrate of the phantom brain comes from two modelling
+traditions. \emph{Neural masses} coarse-grain a cortical column into coupled
+excitatory/inhibitory populations: Wilson \& Cowan's founding model
+\cite{wilson1972excitatory,wilson1973mathematical} with its sigmoidal
+response and E/I loop producing multistability and oscillations; the
+thalamocortical alpha-rhythm loop of Lopes da Silva et al.\
+\cite{lopesdasilva1974model}; and the Jansen--Rit column, the standard
+EEG/VEP generator \cite{jansen1995electroencephalogram}. \emph{Neural fields}
+replace the lumped populations by a continuum sheet with distance-dependent
+connectivity: Amari's analysis of lateral-inhibition (Mexican-hat) fields,
+proving existence and stability of localised bump solutions
+\cite{amari1977dynamics}, systematised in modern reviews
+\cite{coombes2005waves,coombes2010large,ermentrout1998neural} and situated in
+the model hierarchy by Deco et al.\ \cite{deco2008dynamic}. Pattern formation
+via short-range excitation/long-range inhibition is the same
+activator--inhibitor (Turing) mechanism as in reaction--diffusion theory
+\cite{murray2002mathematical}.
+
+A unifying observation, due to Deco et al.\ \cite{deco2008dynamic}: every rung
+of this reduction ladder assumes \emph{exponential} memory kernels
+(second-order synaptic filters, exponential adaptation). Fractional calculus
+replaces them with power-law kernels at the cost of a single order parameter
+--- the minimal generalisation that can express the scale-free temporal
+filtering neural tissue actually exhibits.
+
+\subsection{Fractional evidence at the cellular level}
+
+The strongest empirical motivation is cellular. Lundstrom, Higgs, Spain \&
+Fairhall showed that neocortical pyramidal neurons perform
+\emph{fractional-order differentiation}: spike-frequency adaptation to slowly
+varying input follows a fractional derivative, with memory spanning seconds to
+hundreds of seconds \cite{lundstrom2008fractional}. Anastasio had earlier
+shown the vestibulo-oculomotor integrator behaves as a fractional-order
+integrator \cite{anastasio1994fractional}. If single neurons already compute
+fractional operators, fractional-order \emph{population} models are not an
+abstraction but a coarse-graining of measured physiology.
+
+\subsection{Fractional-order population models}
+
+The fractional generalisation programme is underway but young: Mondal et al.\
+analyse a fractional Wilson--Cowan E/I network, showing the derivative order
+acts as an extra bifurcation parameter enriching the dynamical repertoire
+\cite{mondal2024emergent}; Gonz\'alez-Ram\'irez formulates a Caputo neural
+field with lateral-inhibition kernel and derives approximate travelling waves
+whose speed and profile the order modulates \cite{gonzalezramirez2022fractional};
+and the fractional recurrent-network literature supplies Mittag-Leffler
+stability theory for fractional Hopfield and FitzHugh--Nagumo systems
+\cite{wang2014stability,brandibur2022stability}. A genuine gap: no
+fractional-order Jansen--Rit/EEG neural-mass model appears in the indexed
+literature --- the closest items are the fractional field
+\cite{gonzalezramirez2022fractional} and fractional RNN work
+\cite{wang2014stability}.
+
+\paragraph{Implications for \texttt{fracres}.}
+The library implements the fractional Wilson--Cowan reservoir (stacked E/I
+masses, separate $\tau_E^\alpha, \tau_I^\alpha$) and the fractional Amari
+field (Mexican-hat ring connectivity, nonlinearity inside the convolution
+$w * S(u)$). The missing fractional Jansen--Rit/EEG mass model is a
+positioning opportunity for the EEG-fitting phase of the programme.
+
+\section{Critical brain dynamics}
+\label{sec:criticality}
+
+\subsection{Neuronal avalanches}
+
+Beggs \& Plenz reported that spontaneous LFP events in cortical slice cultures
+distribute in size as a power law $P(S) \sim S^{-\tau}$ with
+$\tau \approx 1.5$, and in duration with $\alpha \approx 2.0$ --- the
+mean-field exponents of a critical branching process (branching ratio
+$\sigma = 1$) \cite{beggs2003neuronal}; the patterns are diverse, precise, and
+reproducible over hours \cite{beggs2004neuronal}. The exponents obey the
+crackling-noise relation $\gamma = (\alpha - 1)/(\tau - 1) \approx 2$, a
+non-trivial consistency check on the critical branching picture
+\cite{beggs2003neuronal}. Reviews have elevated avalanches to a candidate
+organising principle of cortical activity \cite{plenz2007organizing} and
+catalogued the functional benefits of the critical point --- maximal dynamic
+range, information capacity, and an optimal storage/transfer trade-off
+\cite{shew2013functional,chialvo2010emergent}. Spike-avalanche analyses in
+vivo across species and states find near-universal exponents with
+state-dependent deviations \cite{ribeiro2010spike,dehghani2012avalanche}.
+
+\subsection{Scepticism and methodology}
+
+The criticality hypothesis has serious critics. Beggs \& Timme catalogue the
+failure modes: alternative mechanisms mimicking power laws, thresholding
+sensitivity, and the rarity of proper statistical testing
+\cite{beggs2012being}. The methodological standard is Clauset, Shalizi \&
+Newman: maximum-likelihood exponents with $x_{\min}$ selection, bootstrapped
+goodness-of-fit, and likelihood-ratio comparison against log-normal and
+exponential alternatives \cite{clauset2009power} --- the estimator
+\texttt{fracres} implements for its avalanche exponents. A second pitfall is
+\emph{subsampling}: any electrode array records a small fraction of the
+network, biasing measured distributions \cite{priesemann2009subsampling}; with
+subsampling-invariant analysis, in-vivo spike avalanches look
+\emph{slightly subcritical with reverberation} rather than exactly critical
+\cite{priesemann2014spike}.
+
+\subsection{SOC, quasi-SOC, and homeostasis}
+
+Self-organised criticality explains scale invariance without parameter
+tuning \cite{bak1987self,jensen1998self}, but its standard models require
+local conservation --- which neural networks, creating and destroying
+activity, violate. Bonachela \& Mu\~noz proved that feedback-driven
+non-conservative systems self-organise only to \emph{apparent}, finite-range
+scale invariance: quasi-criticality \cite{bonachela2009self}.
+Williams-Garc\'ia et al.\ located driven, resource-limited branching models on
+a nonequilibrium Widom line of near-critical susceptibility maxima, producing
+approximate power laws with near-canonical exponents without exact tuning
+\cite{williamsgarcia2014quasicritical}. The biological mechanism that could
+hold a network in this regime is homeostatic plasticity --- synaptic scaling
+and intrinsic-excitability regulation stabilising average firing rates
+\cite{turrigiano2004homeostatic}. The modern consensus picture is therefore
+\emph{quasi-criticality maintained by homeostatic control}, not strict SOC.
+
+\subsection{E/I balance}
+
+Excitation/inhibition balance is the empirically identified control
+parameter: pharmacological manipulation of inhibition moves avalanche duration
+exponents and waiting-time clustering while $\tau$ stays near $1.5$
+\cite{lombardi2012balance}; avalanches and long-range temporal correlations
+co-emerge in the same human MEG networks and covary with E/I-related state
+\cite{poil2012critical,dehghani2012avalanche}. This motivates both the E/I
+structure of the Wilson--Cowan reservoir and the qSOC homeostat's placement
+as a threshold on population activity.
+
+\paragraph{Implications for \texttt{fracres}.}
+The qSOC reservoir implements exactly the quasi-criticality-with-homeostasis
+picture: a windowed-energy feedback pulling the network toward a critical set
+point \cite{bonachela2009self,turrigiano2004homeostatic}. The library's first
+criticality study found power-law-like avalanches ($\tau \approx 1.2$,
+duration exponents rising with the fractional order) whose statistics
+\emph{survive} a strong perturbation only under homeostatic control ---
+consistent with the homeostat's role being robustness of the operating point
+rather than the source of the exponents. The methodological lessons of
+\cite{clauset2009power,priesemann2014spike} (MLE exponents, subsampling
+awareness) are built into \texttt{metrics.py}.
+
+\section{Long-range dependence: theory and estimation}
+\label{sec:lrd}
+
+\subsection{Self-similar processes and the Hurst phenomenon}
+
+Empirical LRD began with Hurst's rescaled-range analysis of Nile minima: $R/S
+\sim n^{K}$ with $K \approx 0.73 \neq 1/2$ \cite{hurst1951long}. Mandelbrot \&
+Wallis separated the phenomenon into the \emph{Joseph effect} (temporal
+persistence) and the \emph{Noah effect} (heavy-tailed amplitudes)
+\cite{mandelbrot1969noah}, and Mandelbrot \& Van Ness supplied the canonical
+model: fractional Brownian motion $B_H(t)$, the self-similar Gaussian process
+with stationary increments, and its increment process fractional Gaussian
+noise (fGn), whose autocorrelation is non-summable for $H > 1/2$
+\cite{mandelbrot1968fractional}. The fGn autocovariance
+\begin{equation}
+  r(k) = \tfrac{1}{2}\bigl(|k+1|^{2H} - 2|k|^{2H} + |k-1|^{2H}\bigr),
+  \qquad r(0) = 1,
+  \label{eq:fgn}
+\end{equation}
+is exactly what the Davies--Harte circulant-embedding algorithm synthesises in
+$O(n \log n)$ \cite{davies1987tests} --- the drive generator in
+\texttt{fracres} (\texttt{drivers.py}), scaled so the realised process has
+unit variance in expectation and the exact $r(k)$. ARFIMA/fractional
+differencing $(1-B)^d$ provides the discrete-time sibling with $\beta = 2d$
+\cite{granger1980introduction}.
+
+\subsection{Estimators and their failure modes}
+
+Second-order LRD theory defines long memory equivalently by non-summable
+covariance, a spectral pole $f(\lambda) \sim |\lambda|^{-2d}$, or aggregated
+variance $\mathrm{Var}(X^{(m)}) \sim m^{2H-2}$ \cite{beran1994statistics}.
+The estimator landscape is treacherous: Taqqu, Teverovsky \& Willinger's
+Monte Carlo study showed most $H$ estimators are strongly biased at realistic
+lengths, so agreement among methods is required before claiming LRD
+\cite{taqqu1995estimators}. The two estimators in \texttt{fracres} cover the
+time and frequency domains: detrended fluctuation analysis
+\cite{peng1994mosaic}, for which the DFA exponent equals $H$ for stationary
+fGn (and $H+1$ for fBm, whence a stationarity check), and spectral-slope
+estimation, since the fGn PSD decays as
+\begin{equation}
+  S(f) \propto f^{-\beta}, \qquad \beta = 2H - 1
+  \label{eq:psd}
+\end{equation}
+over the scaling range --- so $1/f$-like spectra ($\beta \approx 1$) sit at
+the edge of the fGn family. Wavelet log-scale diagrams estimate $H$ from the
+scale-energy law $\mathbb{E}|d_{j,k}|^2 \propto 2^{j(2H)}$, exploiting the
+decorrelation of wavelet coefficients for fGn-like processes
+\cite{abry1998wavelet,veitch1999wavelet}; the wavelet lens connects
+self-similarity to Besov regularity \cite{abry2003self}, the function-space
+framing the library's regulariser adopts.
+
+\subsection{Heavy tails: the variance trap}
+
+All of the above presupposes finite variance. For $\alpha$-stable processes
+with tail index $\alpha_{\mathrm{tail}} < 2$, variance is infinite,
+covariance undefined, and \emph{every} $L^2$-based estimator --- R/S,
+variance--time, aggregated variance, DFA to second order --- is biased or
+meaningless: heavy tails masquerade as, and corrupt estimates of, long memory
+\cite{samorodnitsky1994stable,samorodnitsky2007long}. Samorodnitsky's survey
+shows LRD is \emph{plural} under heavy tails: scaling of sums, maxima, and
+ergodic structure need not agree, and dependence must be characterised by
+moment-free measures \cite{samorodnitsky2007long}. The principled response is
+to move from covariance to \emph{scale-space regularity}: $p$-th order
+wavelet/Besov energies with $p < \alpha_{\mathrm{tail}}$, where the
+smoothness index must respect $s < \min\{H, 1/p\}$ --- the $1/p$ ceiling is
+the jump/heavy-tail guardrail. This is exactly the Besov index convention
+implemented in \texttt{fracres}' \texttt{training.besov\_indices} and its
+Littlewood--Paley regulariser, and it frames the library's thesis-level
+claim: covariance-LRD is the $p=2$, stationary shadow of a broader
+Besov--wavelet scaling phenomenon.
+
+\subsection{LRD in neural signals}
+
+The neural evidence is strong and old: amplitude envelopes of spontaneous
+human MEG/EEG oscillations show power-law correlations over hundreds of
+seconds with DFA exponents $\approx 0.6$--$0.8$
+\cite{linkenkaer2001long}; $1/f$ aperiodic spectra are ubiquitous across
+recording modalities and covary with E/I balance, state, and age
+\cite{he2014scale,voytek2015dynamic}; and DFA methodology --- including the
+$\alpha = H$ vs.\ $H+1$ ambiguity, crossovers, and nonstationarity pitfalls
+--- is codified for neurophysiology by Hardstone et al.\
+\cite{hardstone2012detrended}, who also survey DFA changes in sleep,
+development, and pathology. These are precisely the statistics a phantom
+brain must reproduce, and the estimators it must calibrate against.
+
+\paragraph{Implications for \texttt{fracres}.}
+The library's metric suite (\texttt{metrics.py}) implements DFA and the
+log-binned low-frequency spectral fit with the finite-sample safeguards the
+literature demands \cite{taqqu1995estimators,hardstone2012detrended}; the
+drive is exact Davies--Harte fGn \cite{davies1987tests}; and the Besov
+regulariser enforces the heavy-tail-aware bounds $p < \alpha_{\mathrm{tail}}$,
+$s < \min\{H,1/p\}$ \cite{samorodnitsky2007long,abry2003self}. The remaining
+gap is a non-Gaussian (stable) drive so the $\alpha_{\mathrm{tail}} < 2$
+machinery is actually exercised.
+
+\section{Synthesis: the \texttt{fracres} programme in context}
+\label{sec:synthesis}
+
+Table~\ref{tab:map} summarises how each body of theory lands in code. Three
+conclusions emerge from the assembled literature.
+
+\begin{table}[t]
+\centering\small
+\caption{Theory-to-code map for \texttt{fracres}, with the anchoring literature.}
+\label{tab:map}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Component & Theory & Key references \\
+\midrule
+\texttt{kernels.py} & GL / L1-Caputo schemes & \cite{oldham1974fractional,linxu2007l1,scherer2011grunwald} \\
+\texttt{validation.py} & $D^\alpha t^\beta$, Mittag-Leffler & \cite{podlubny1999fractional,gorenflo2014mittag} \\
+\texttt{stability.py} & Matignon wedge, edge of chaos & \cite{matignon1996stability,bertschinger2004edge} \\
+\texttt{reservoirs.py} & ESN split, fractional Wilson--Cowan/Amari & \cite{jaeger2001echo,wilson1972excitatory,amari1977dynamics} \\
+qSOC homeostat & Quasi-criticality + homeostasis & \cite{bonachela2009self,turrigiano2004homeostatic} \\
+\texttt{drivers.py} & fGn, Davies--Harte synthesis & \cite{mandelbrot1968fractional,davies1987tests} \\
+\texttt{regularizers.py} & Besov / Littlewood--Paley & \cite{abry2003self,samorodnitsky2007long} \\
+\texttt{training.py} & Readout-only ridge/gradient & \cite{jaeger2001echo,verstraeten2007unification} \\
+\texttt{metrics.py} & DFA, spectral slope, CSN MLE & \cite{peng1994mosaic,clauset2009power} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{1. The niche is genuinely open.}
+Fractional RC exists but is four papers deep and none of it targets critical
+statistics, neural-mass structure, or stochastic fGn drive
+\cite{yao2020fractional,goswami2026longmemory,mastin2026fractional,teuscher2026hardware}.
+Fractional neural models exist but no fractional Jansen--Rit/EEG mass model
+is indexed (Section~\ref{sec:masses}). The intersection --- fractional-node
+reservoirs as \emph{critical brain phantoms} --- appears unoccupied.
+
+\paragraph{2. The biological and theoretical motivations are independent and
+convergent.}
+Cellular fractional computation \cite{lundstrom2008fractional,anastasio1994fractional},
+power-law population filtering (Section~\ref{sec:masses}), quasi-criticality
+with homeostasis \cite{bonachela2009self,turrigiano2004homeostatic}, and the
+failure of $L^2$ LRD theory under heavy tails
+\cite{samorodnitsky2007long} each independently push toward the same
+construction: power-law memory operators, criticality control, and
+Besov-geometry regularisation.
+
+\paragraph{3. The sharpest open problems are theoretical, and they are named.}
+(a)~A fractional echo-state property: contractivity of the fractional state
+map under algebraic (non-geometric) decay, in the spirit of
+\cite{buehner2006tighter,yildiz2012echo}.
+(b)~Memory-capacity redistribution: how power-law kernels reallocate the
+Dambre capacity budget across delays \cite{dambre2012capacity}.
+(c)~Criticality claims must be made with Clauset--Shalizi--Newman rigour and
+subsampling awareness \cite{clauset2009power,priesemann2014spike} ---
+avalanches from a phantom are hypotheses about mechanism, not evidence about
+brains, until confronted with data.
+(d)~The inverse problem: inferring $(\alpha, H)$ and the E/I operating point
+from real EEG, where the estimator pathologies of
+Section~\ref{sec:lrd} are themselves part of the question.
+
+\appendix
+
+\section{Bibliographic verification}
+\label{app:verification}
+
+All 81 references were collected and verified programmatically (September
+2026) against live bibliographic APIs --- Crossref/doi.org content
+negotiation, OpenAlex, OpenLibrary, NeurIPS proceedings, and arXiv abstract
+pages --- with per-entry verification logs in \texttt{docs/litreview/notes/}.
+Residual caveats: Matignon 1996 \cite{matignon1996stability} has no DOI
+(OpenAlex-verified; page numbers from secondary citations); the Jaeger GMD
+reports \cite{jaeger2001echo,jaeger2002memory} are verified via author-hosted
+copies; the Abry--Flandrin--Taqqu--Veitch chapter \cite{abry2003self} is
+verified at container level only; Mandelbrot \& Wallis is cited per verified
+publisher metadata (WRR \textbf{4}(5), 1968), which corrects the widespread
+miscitation as vol.~5, 1969 \cite{mandelbrot1969noah}; Voytek \& Knight 2015
+appears in \emph{Biological Psychiatry}, not \emph{Neuron}
+\cite{voytek2015dynamic}.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
