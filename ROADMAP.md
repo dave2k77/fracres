@@ -111,6 +111,12 @@ Pulled in as the data work demands, in rough dependency order:
 
 ## Next 5 — Publication track
 
+- [x] **Literature review** (`docs/litreview/main.tex`, compiled PDF
+      included): 81 programmatically verified references across the four
+      theory pillars, with per-section implications for the library and a
+      synthesis naming the open problems (fractional ESP, capacity
+      redistribution, CSN-rigour criticality, the EEG inverse problem).
+      Feeds the related-work sections of both papers below.
 - [ ] Methods paper: fractional reservoir + validation results (kernel orders,
       Matignon advantage, Besov $s$-tracking). The learning manual is most of a
       supplementary tutorial.
