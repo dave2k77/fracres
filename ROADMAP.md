@@ -78,9 +78,23 @@ Pulled in as the data work demands, in rough dependency order:
 
 ## Next 3 — Criticality science (no new code needed)
 
-- [ ] **qSOC → avalanches study**: does the homeostat produce $\tau\approx1.5$,
-      $\alpha\approx2.0$ across sweeps, and recover critical statistics after
-      perturbation? Paper-shaped.
+- [x] **qSOC → avalanches study** (`examples/qsoc_avalanches.py`). Findings:
+      (i) supra-threshold population events organise into power-law-like
+      avalanches across the $(\alpha, H)$ grid — size $\tau\approx1.2$ (a
+      little under the cortical 1.5; CSN MLE at $n\approx70$ avalanches is
+      noisy) and duration $\alpha\approx1.7$–$3.0$, rising with the fractional
+      order; (ii) the homeostat's measurable role is **robustness, not
+      necessity**: with $E_{crit}$ calibrated to the natural operating energy a
+      matched no-qSOC control shows the *same* exponents, but after a 5×
+      drive-amplitude kick the qSOC run's energy returns to the set point
+      ($0.093 \to 0.125 \to 0.091$) and its pre/post-kick exponents are
+      statistically indistinguishable ($\tau$ 1.20 vs 1.21); (iii) two
+      calibration pitfalls documented in the script — $E_{crit}$ must be
+      reachable (tanh saturation caps the energy; an unreachable set point pegs
+      the threshold and disables regulation), and post-perturbation z-scores
+      must be window-local. Follow-up: multi-seed ensembles for tighter MLE
+      error bars; sweep $E_{crit}$ *away* from the natural energy to find where
+      the homeostat becomes load-bearing.
 - [ ] **E/I balance and criticality**: does the Wilson–Cowan $\tau_E/\tau_I$
       ratio move avalanche exponents as the cortical literature predicts?
 
