@@ -11,7 +11,9 @@ memory. Driven by heavy-tailed stochastic noise and regularised toward critical
 dynamics in a Besov / $L^p$ geometry, these "phantom brains" generate synthetic
 macroscopic neural signals (EEG/MEG-like) with realistic long-range dependence.
 
-The theory is documented in [`docs/knowledge_base.md`](docs/knowledge_base.md).
+New here? Start with the [**learning manual**](docs/learning_manual.md) — a
+guided, read-in-order course on the concepts (theory + implementation). The terse
+theory reference is [`docs/knowledge_base_v2.md`](docs/knowledge_base_v2.md).
 
 > Status: **pre-alpha / research code.** APIs will change.
 
