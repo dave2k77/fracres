@@ -8,16 +8,18 @@ contrast at the group level (paired across the 15 PD subjects, HC as reference).
 Refinements over the single-subject demo, per the lessons note:
 - alpha axis extended to the boundary region {0.85, 0.9, 0.95, 1.0}
   (the single-subject best sat at the grid edge);
-- H at 0.05 spacing over [0.45, 0.80] (the region both sessions landed in);
+- H at 0.05 spacing over [0.15, 0.80] (v2, extended downward after v1's ON
+  best fits piled up at the 0.45 grid minimum);
 - 3 seeds per grid point (common random numbers across the grid);
 - every recording cropped to the same 120 s so estimator finite-sample biases
   are comparable across subjects *and* sessions.
 
-Output: outputs/off_on_mechanisms.csv (one row per subject x session x channel;
+Output: outputs/off_on_mechanisms_v2.csv (one row per subject x session x
+channel;
 incremental + resumable -- already-written rows are skipped), then a group
 summary with a Wilcoxon signed-rank test on per-subject best-fit H, OFF vs ON.
 
-Run:  python examples/study_off_on_mechanisms.py   (~45 min; safe to re-run)
+Run:  python examples/study_off_on_mechanisms.py   (~2 h; safe to re-run)
 """
 from __future__ import annotations
 
@@ -33,13 +35,23 @@ from fracres.inverse import grid_search
 
 CHANNELS = ["Fz", "Cz", "Pz"]
 ALPHAS = [0.85, 0.9, 0.95, 1.0]
-HURSTS = [0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
+# v2: extended downward -- in v1, 31-46% of ON-session best fits piled up at
+# the 0.45 grid minimum, truncating the ON regime.
+HURSTS = [0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7,
+          0.75, 0.8]
 DECAYS = [1.0]
 N_SEEDS = 3
 RESAMPLE = 64.0
 T_CROP = int(120 * RESAMPLE)  # 7680 samples: uniform length for every recording
 
-OUT = Path(__file__).resolve().parents[1] / "outputs" / "off_on_mechanisms.csv"
+# Provenance exclusion (participants.tsv "notes" column): sub-pd6 and sub-pd16
+# ON-medication sessions were reconstructed from preprocessed EEGLAB .mat
+# files, not raw data -- the preprocessing destroys the 1/f structure (their
+# ON data_beta comes out NEGATIVE, vs ~1.6 for everyone else), so their ON
+# rows are not comparable and are skipped here.
+EXCLUDE = {("sub-pd6", "on"), ("sub-pd16", "on")}
+
+OUT = Path(__file__).resolve().parents[1] / "outputs" / "off_on_mechanisms_v2.csv"
 FIELDS = [
     "subject", "group", "session", "channel",
     "alpha", "hurst", "decay", "objective",
@@ -67,6 +79,8 @@ def main():
             writer.writeheader()
         for p in participants:
             for ses in list_sessions(root, p.subject):
+                if (p.subject, ses) in EXCLUDE:
+                    continue
                 needed = [c for c in CHANNELS if (p.subject, ses, c) not in done]
                 if not needed:
                     continue
