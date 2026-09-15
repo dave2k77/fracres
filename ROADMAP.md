@@ -48,8 +48,17 @@ The detailed record of the baseline lives in git history; key verified results:
 Turn fracres from a phantom generator into an instrument, using the Parkinson's
 EEG from the broader LRD project.
 
-- [ ] **Data ingestion**: real EEG/MEG loading with channel geometry and
-      sampling-rate handling.
+- [x] **Data ingestion** (`src/fracres/data.py`, `examples/load_eeg.py`): the UC
+      San Diego resting-state Parkinson's dataset (OpenNeuro ds002778; 15 PD ×
+      medication OFF/ON + 16 HC, BioSemi 32ch @ 512 Hz, ~200 s runs) is mirrored
+      locally under `data/ds002778` (gitignored, resumable fetch script
+      included). BIDS- and session-aware loading (`load_subject` /
+      `recording_path` handle the `ses-off`/`ses-on`/`ses-hc` layout),
+      participants.tsv parsing, EXG/status channel dropping, standard-montage
+      sensor positions, optional resampling, JAX hand-off. `mne` is an optional
+      `data` extra, imported lazily. Data-use obligations (cite Jackson 2019,
+      Swann 2015, George 2013; email the curators pre-submission; **no** PD/HC
+      classifier) recorded in the module docstring.
 - [ ] **Forward-fit workflow**: drive the reservoir with a real signal, fit the
       readout to reconstruct/forecast held-out channels, compare achieved
       DFA-$H$ / spectral-$\beta$ / avalanche exponents between model output and

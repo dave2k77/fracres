@@ -23,6 +23,17 @@ from fracres.config import (
     save_config,
     to_dict,
 )
+from fracres.data import (
+    EEGRecording,
+    Participant,
+    dataset_root,
+    list_sessions,
+    list_subjects,
+    load_participants,
+    load_recording,
+    load_subject,
+    recording_path,
+)
 from fracres.drivers import generate_fbm_increments
 from fracres.kernels import AbstractFractionalKernel, GLKernel, L1CaputoKernel
 from fracres.metrics import (
@@ -97,6 +108,15 @@ __all__ = [
     "WilsonCowanPhantomBrain",
     "NeuralFieldPhantomBrain",
     "generate_fbm_increments",
+    "EEGRecording",
+    "Participant",
+    "dataset_root",
+    "list_subjects",
+    "list_sessions",
+    "load_participants",
+    "load_recording",
+    "load_subject",
+    "recording_path",
     "ExperimentConfig",
     "KernelConfig",
     "ModelConfig",

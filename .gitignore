@@ -25,6 +25,9 @@ outputs/
 runs/
 wandb/
 
+# Downloaded datasets (e.g. data/ds002778 mirror, ~545 MB)
+data/
+
 # Claude Code harness state
 .claude/
 
