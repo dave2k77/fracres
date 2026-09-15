@@ -36,6 +36,12 @@ from fracres.data import (
 )
 from fracres.drivers import generate_fbm_increments
 from fracres.forward_fit import ForwardFitResult, channel_matrix, forward_fit
+from fracres.inverse import (
+    GridPoint,
+    MechanismFitResult,
+    grid_search,
+    metric_distance,
+)
 from fracres.kernels import AbstractFractionalKernel, GLKernel, L1CaputoKernel
 from fracres.metrics import (
     AvalancheExponents,
@@ -112,6 +118,10 @@ __all__ = [
     "ForwardFitResult",
     "channel_matrix",
     "forward_fit",
+    "GridPoint",
+    "MechanismFitResult",
+    "grid_search",
+    "metric_distance",
     "EEGRecording",
     "Participant",
     "dataset_root",

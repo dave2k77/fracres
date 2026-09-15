@@ -74,11 +74,22 @@ EEG from the broader LRD project.
       `n_segments` argument into `spectral_exponent`'s `f_max` slot (silently
       full-band fits); signature is now `signal_metrics(x, f_max=0.1)` with a
       regression test.
-- [ ] **Mechanism inference (inverse problem)**: sweep $(\alpha, H, \lambda,$
-      variant) against real-data statistics — "what fractional order does this
-      brain region act like?" Needs an objective comparing model-output metrics
-      to data metrics, plus a grid-search/optimiser driver (config system
-      already makes the sweep declarative).
+- [x] **Mechanism inference (inverse problem)** (`src/fracres/inverse.py`,
+      `examples/inverse_problem_eeg.py`): weighted Euclidean objective on the
+      (DFA-$H$, spectral-$\beta$) metric vector vs data; declarative
+      $(\alpha, H, \lambda)$ grid search with common random numbers across the
+      grid, seed-ensembled metrics, and length-matched simulation. Exact-replay
+      recovery tests pin identifiability (wrong-$H$ points lose by $\geq$0.3).
+      **Key finding**: raw scalp EEG is fBm-like ($\beta>1$, DFA-$H$ $>1$) and a
+      contractive reservoir driven by stationary fGn *cannot* reach that regime
+      (best fGn objective $\approx$ 1.6 — the regime mismatch is itself the
+      diagnostic); with the integrated `drive_kind="fbm"` option the problem
+      becomes well-posed. First result on `sub-pd3` Cz: OFF $\to$
+      $(\alpha{=}0.9, H{=}0.7, \lambda{=}1)$, obj 0.068; ON $\to$
+      $(\alpha{=}0.9, H{=}0.6, \lambda{=}1)$, obj 0.008 — medication leaves the
+      fractional order unchanged and whitens the effective drive
+      ($H$: 0.7→0.6). Caveats: single subject, $\alpha$ at the grid boundary,
+      coarse 0.1 $H$ spacing — refine before the study.
 
 ## Next 2 — Model expressiveness
 
