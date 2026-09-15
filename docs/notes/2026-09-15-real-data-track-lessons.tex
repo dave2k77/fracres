@@ -1,0 +1,219 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\title{Lessons from the Real-Data Track\\
+\large fracres meets ds002778: implementation, failures, and validations}
+\author{Working note --- fracres project (D.~R.~Chin)}
+\date{15 September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This note records what was learned while taking fracres from a
+phantom generator to an instrument that loads real EEG, reconstructs
+held-out channels, and infers generative mechanisms (ROADMAP ``Next 1'',
+commits \texttt{92b473a}, \texttt{d96da46}, \texttt{8abc81e}). It covers the
+three scientific findings, the failures encountered en route and how each was
+resolved, the validation patterns that proved trustworthy, and the open
+threads. The failures are recorded deliberately: several were cheap to make
+and would be cheap to make again.
+\end{abstract}
+
+\section{What was built}
+
+Three modules over the UC San Diego resting-state Parkinson's dataset
+(OpenNeuro \texttt{ds002778}: 15 PD patients $\times$ medication OFF/ON
+sessions, 16 controls; BioSemi 32-channel, 512\,Hz, ${\sim}200$\,s runs;
+571\,MB mirrored locally from the anonymous S3 bucket):
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Ingestion} (\texttt{fracres.data}): BIDS- and session-aware
+        loading (\texttt{ses-off}/\texttt{ses-on}/\texttt{ses-hc}),
+        participants metadata, EXG/status channel dropping, standard-montage
+        geometry, optional resampling, JAX hand-off. \texttt{mne} is a lazy
+        optional extra.
+  \item \textbf{Forward fit} (\texttt{fracres.forward\_fit}): average
+        re-reference + z-score, drive the frozen reservoir with a real channel,
+        closed-form ridge reconstruction of held-out channels (temporal split
+        + washout), per-channel held-out correlation/nMSE and DFA-$H$ /
+        spectral-$\beta$ comparison.
+  \item \textbf{Inverse problem} (\texttt{fracres.inverse}): weighted Euclidean
+        objective on the (DFA-$H$, spectral-$\beta$) metric vector;
+        declarative $(\alpha, H, \lambda)$ grid search with common random
+        numbers, seed-ensembled metrics, length-matched simulation, and an
+        \texttt{fbm} drive regime.
+\end{enumerate}
+
+\section{Scientific findings}
+
+\paragraph{1. The OFF/ON asymmetry (forward fit).}
+Driven by Fz of \texttt{sub-pd3}, the same $(\alpha, H)$ phantom reconstructs
+seven channels at mean correlation $0.52$ OFF medication but only $0.19$ ON;
+the data's statistics shift between sessions (spectral $\beta$ up to
+$1.5$--$1.8$, DFA-$H$ to $1.3$--$1.45$). No single mechanism matches both
+medication states --- the inverse problem is empirically necessary, not merely
+planned.
+
+\paragraph{2. The fGn regime mismatch, and its resolution.}
+Raw scalp EEG is fBm-\emph{like}: $\beta \approx 1.8$, DFA-$H \approx 1.3$
+(nonstationary). A \emph{contractive} reservoir driven by stationary fGn
+cannot produce $\beta > 1$ --- the first grid sweep bottomed out at objective
+$\approx 1.58$ with every candidate near DFA-$H \approx 0.7$, $\beta \approx
+0.4$. The failure was itself the diagnostic: the drive must be integrated.
+With \texttt{drive\_kind="fbm"} (z-scored cumulative fGn), the stable
+reservoir passes the drive's low-frequency power law through, so
+\emph{anti-persistent} $H$ reaches the EEG regime exactly:
+$\beta = 2H+1$, DFA-$H = H+1$.
+
+\paragraph{3. The medication contrast (inverse problem).}
+Best-fit mechanism for \texttt{sub-pd3} Cz (60-point grid, 2 seeds):
+OFF $\to (\alpha{=}0.9, H{=}0.7, \lambda{=}1)$, objective $0.068$;
+ON $\to (\alpha{=}0.9, H{=}0.6, \lambda{=}1)$, objective $0.008$ (DFA-$H$
+$1.398$ vs.\ data $1.403$; $\beta$ $1.94$ vs.\ $1.94$). Dopamine leaves the
+fractional \emph{order} unchanged and \emph{whitens the effective drive}
+($H\colon 0.7 \to 0.6$). Caveats: one subject, $\alpha$ at the grid boundary,
+$H$ spacing $0.1$. A hypothesis, not a result.
+
+\section{Failures encountered and how they were resolved}
+
+Recorded most-recent-first within each category; each entry names the failure,
+the signal that exposed it, and the fix.
+
+\subsection{Latent code defects}
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[\texttt{signal\_metrics} argument misrouting.]
+  The bundle passed \texttt{n\_segments=8} into \texttt{spectral\_exponent}'s
+  \texttt{f\_max} slot, so every bundled $\beta$ was silently a \emph{full-band}
+  fit ($f_{\max}=8$ cycles/sample --- above Nyquist) --- precisely the bias the
+  $f_{\max}$ restriction exists to prevent. The existing test tolerated it
+  because its $0.15$ agreement slack absorbed the underestimate. \emph{Fix:}
+  signature changed to \texttt{signal\_metrics(x, f\_max=0.1)}; regression test
+  pins exact equality with \texttt{spectral\_exponent(x)} and the direction of
+  the band-restriction effect. Estimator recovery improved visibly
+  ($H{=}0.8$: $\beta$ $0.555$ vs.\ true $0.6$). \emph{Lesson:} positional
+  arguments across similarly-shaped signatures are a standing hazard; bundle
+  functions should forward by keyword, and loose agreement tests hide
+  misrouted arguments.
+
+  \item[Suite-order-dependent test failure (global \texttt{x64}).]
+  A new regression test passed standalone but failed in the full suite:
+  other test modules enable \texttt{jax\_enable\_x64} globally at import,
+  and the Davies--Harte fGn differs under float32/float64 --- float32 adds a
+  high-frequency noise floor that flattens the spectrum enough to flip an
+  inequality ($\beta_{0.1} = 0.587$ vs.\ full-band $0.401$ in float32;
+  $0.620$ vs.\ $0.622$ in float64). \emph{Fix:} the directional assertion now
+  uses a prescribed-spectrum signal (exactly $f^{-0.6}$ below $f{=}0.1$, flat
+  above, random phases), which is strictly ordered in any precision.
+  \emph{Lesson:} never write order-dependent assertions on stochastically
+  generated signals when global precision state varies; construct the
+  property you want to test directly.
+
+  \item[Asserting an invariant in the wrong domain.]
+  My own preprocessing test asserted that average-referenced channels sum to
+  zero \emph{after} per-channel z-scoring --- false, because z-scoring
+  rescales channels unequally. \emph{Fix:} assert the zero-sum property with
+  \texttt{zscore=False} and the unit-variance property separately.
+  \emph{Lesson:} state which processing stage each invariant belongs to;
+  composing transforms composes their side conditions.
+\end{description}
+
+\subsection{Wrong assumptions about the dataset}
+
+All three of these would have been avoided by inspecting one subject's files
+before writing the loader --- they were caught by tests against the real
+mirror instead:
+
+\begin{itemize}[leftmargin=1.6em]
+  \item \textbf{Session level.} ds002778 is not
+        \texttt{sub-*/eeg/} but \texttt{sub-*/ses-*/eeg/}, and PD subjects
+        have \emph{two} sessions (\texttt{ses-off}/\texttt{ses-on},
+        medication state) --- which turned out to be the most scientifically
+        valuable axis of the whole track. \texttt{recording\_path} now
+        resolves sessions, auto-selecting a single session and requiring an
+        explicit choice when there are several.
+  \item \textbf{Channel count.} Assumed BioSemi 64 (from the EXG1--8
+        discussion in the dataset comments); the cap is 32 scalp channels.
+        Default montage corrected to \texttt{biosemi32} (and the mne naming
+        has no underscore --- \texttt{biosemi\_64} fails with a long
+        allowed-values error).
+  \item \textbf{Participants schema.} No \texttt{Group} column; group comes
+        from the subject-label prefix. The parser now falls back to label
+        inference.
+\end{itemize}
+
+\subsection{Test-calibration failures}
+
+\begin{itemize}[leftmargin=1.6em]
+  \item \textbf{Arbitrary margins.} The inverse-problem recovery test first
+        demanded every non-true grid point score $> 0.05$; the runner-up
+        scored $0.039$ --- legitimately, since $\alpha$ is the soft direction
+        at finite $T$. Replaced with \emph{structurally motivated}
+        assertions: the true point scores $\approx 0$ (exact replay via
+        common random numbers), wrong-$H$ points lose by $\geq 0.3$
+        (the sharp direction). Test now encodes an identifiability claim, not
+        a magic number.
+  \item \textbf{Mental arithmetic in expected values.} A weighted-distance
+        test expected $0.4$ where the definition gives $\sqrt{4 \cdot 0.1^2}
+        = 0.2$; the module was right. Weights multiply squared deviations ---
+        document the convention at the signature.
+\end{itemize}
+
+\subsection{Environment and access}
+
+\begin{itemize}[leftmargin=1.6em]
+  \item OpenNeuro needs neither DataLad nor the AWS CLI: the
+        \texttt{openneuro.org} S3 bucket allows anonymous \texttt{ListBucket}
+        and \texttt{GET}, so a 60-line stdlib script mirrors a dataset
+        (resumable, size-verified). \texttt{mne.export} to EDF additionally
+        needs \texttt{edfio}; BDF export is unsupported, so synthetic-test
+        fixtures are EDF.
+\end{itemize}
+
+\section{Validation patterns that earned trust}
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Exact replay (common random numbers).} Sharing model/drive
+        seeds across grid points makes the true mechanism score exactly $0$
+        in a recovery test --- a deterministic, epsilon-free identifiability
+        check that doubles as variance reduction in the search itself.
+  \item \textbf{Expressible vs.\ unpredictable channels.} The forward-fit
+        unit test pairs a lagged/smoothed target (must reconstruct) with an
+        independent-noise channel (must not), so the pipeline is tested at
+        both ends of its operating range.
+  \item \textbf{Opt-in integration tests.} Real-data tests skip unless the
+        local mirror exists (same pattern as the hpfracc cross-reference):
+        CI stays data-free, but every structural assumption is verified
+        against the real recordings on a developer machine.
+  \item \textbf{Metrics with physical priors.} Knowing EEG \emph{should} sit
+        at $\beta \in [1,2]$ turned the inverse problem's large residual from
+        a disappointing number into a mechanism diagnosis (Section~2,
+        finding 2). Sanity ranges are part of the instrument.
+\end{enumerate}
+
+\section{Open threads}
+
+\begin{itemize}[leftmargin=1.6em]
+  \item Grid refinement: $\alpha \to 0.95/1.0$ (best-fit is at the boundary),
+        $H$ at $0.05$ spacing, more seeds for MLE-tight error bars.
+  \item All-subject $\times$ all-channel OFF/ON sweep --- the population-level
+        version of finding 3, and the seed of the phantom-vs-real-EEG study
+        (ROADMAP Next 5).
+  \item Per-node $(\alpha, \lambda)$ (Next 2) as the mechanism question moves
+        from ``which order'' to ``which distribution of orders''.
+  \item The \texttt{fbm} drive regime currently lives in
+        \texttt{fracres.inverse}; promoting it to \texttt{fracres.drivers}
+        would let every example and the config system use it.
+  \item Data-use obligations for any publication: cite Jackson et al.\ 2019
+        (\emph{eNeuro}), Swann et al.\ 2015 (\emph{Ann.\ Neurol.}), George et
+        al.\ 2013 (\emph{NeuroImage Clin.}); email the curators
+        pre-submission; no PD/HC classifier on this $n$ (curators' explicit
+        request --- our use is forward modelling and LRD statistics).
+\end{itemize}
+
+\end{document}
