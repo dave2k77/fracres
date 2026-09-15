@@ -73,6 +73,32 @@ def test_signal_metrics_two_estimators_agree_on_H():
     assert abs(m.hurst_dfa - m.hurst_spectral) < 0.15
 
 
+def test_signal_metrics_routes_f_max_to_spectral_exponent():
+    """Regression: the bundle must apply the low-frequency band restriction.
+
+    Previously the ``n_segments`` argument was passed into
+    :func:`spectral_exponent`'s ``f_max`` slot (f_max=8 cycles/sample, above
+    Nyquist), silently turning the fit into a full-band one and underestimating
+    beta -- the bias the f_max restriction exists to prevent.
+    """
+    x = _fgn(0.8, n=16000)
+    m = signal_metrics(x)
+    assert m.spectral_beta == pytest.approx(spectral_exponent(x))
+
+    # Directional check, independent of jax float32/64 numerics (the suite's
+    # global x64 state shifts the fGn noise floor): synthesise a signal whose
+    # spectrum is exactly f^-0.6 below f=0.1 and flat above -- a full-band fit
+    # is then strictly shallower than the restricted one.
+    rng = np.random.default_rng(0)
+    n = 8192
+    f = np.fft.rfftfreq(n)
+    amp = np.where(f <= 0.1, f ** -0.3, 0.1**-0.3 * np.ones_like(f))
+    amp[0] = 0.0
+    spectrum = amp * np.exp(2j * np.pi * rng.random(f.size))
+    x_shaped = np.fft.irfft(spectrum, n=n)
+    assert spectral_exponent(x_shaped) > spectral_exponent(x_shaped, f_max=0.5)
+
+
 # --- criticality / avalanches -------------------------------------------------
 
 def test_detect_avalanches_on_constructed_signal():

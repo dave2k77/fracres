@@ -151,12 +151,17 @@ class SignalMetrics(NamedTuple):
     hurst_spectral: float  # H implied by beta, via H = (beta + 1) / 2 (fGn)
 
 
-def signal_metrics(x, n_segments: int = 8) -> SignalMetrics:
+def signal_metrics(x, f_max: float = 0.1) -> SignalMetrics:
     """Bundle :func:`hurst_dfa` and :func:`spectral_exponent`, with the spectral
     estimate mapped back onto the Hurst scale (``H = (beta + 1)/2`` for fGn) so the
     two estimators can be compared directly, and against the drive's known ``H``.
+
+    ``f_max`` is forwarded to :func:`spectral_exponent` (low-frequency power-law
+    band, cycles/sample). (The previous ``n_segments`` parameter was misrouted
+    into ``spectral_exponent``'s ``f_max`` slot, silently disabling the
+    low-frequency restriction; it is removed.)
     """
-    beta = spectral_exponent(x, n_segments)
+    beta = spectral_exponent(x, f_max=f_max)
     return SignalMetrics(
         hurst_dfa=hurst_dfa(x),
         spectral_beta=beta,

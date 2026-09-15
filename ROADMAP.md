@@ -59,10 +59,21 @@ EEG from the broader LRD project.
       `data` extra, imported lazily. Data-use obligations (cite Jackson 2019,
       Swann 2015, George 2013; email the curators pre-submission; **no** PD/HC
       classifier) recorded in the module docstring.
-- [ ] **Forward-fit workflow**: drive the reservoir with a real signal, fit the
-      readout to reconstruct/forecast held-out channels, compare achieved
-      DFA-$H$ / spectral-$\beta$ / avalanche exponents between model output and
-      recording. Success = the phantom reproduces the data's statistics.
+- [x] **Forward-fit workflow** (`src/fracres/forward_fit.py`,
+      `examples/forward_fit_eeg.py`): average re-reference + z-score
+      preprocessing, drive the frozen reservoir with a real channel (Fz),
+      closed-form ridge reconstruction of held-out channels (train/held-out
+      temporal split + washout), per-channel held-out correlation/nMSE, and
+      DFA-$H$ / spectral-$\beta$ of model output vs recording. First result on
+      `sub-pd3`: OFF-medication the phantom reconstructs 7 channels at mean
+      corr 0.52 with $\beta$ slightly too steep (1.75 vs 1.4–1.75); ON
+      medication the *same* $(\alpha, H)$ configuration fails (corr 0.19, data
+      $\beta$ shifts up to 1.5–1.8, DFA-$H$ to 1.3–1.45) — direct evidence for
+      the inverse problem: matching both sessions needs per-session
+      $(\alpha, H)$. Also fixed en route: `signal_metrics` misrouted its
+      `n_segments` argument into `spectral_exponent`'s `f_max` slot (silently
+      full-band fits); signature is now `signal_metrics(x, f_max=0.1)` with a
+      regression test.
 - [ ] **Mechanism inference (inverse problem)**: sweep $(\alpha, H, \lambda,$
       variant) against real-data statistics — "what fractional order does this
       brain region act like?" Needs an objective comparing model-output metrics
