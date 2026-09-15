@@ -151,7 +151,17 @@ Pulled in as the data work demands, in rough dependency order:
 - [ ] Methods paper: fractional reservoir + validation results (kernel orders,
       Matignon advantage, Besov $s$-tracking). The learning manual is most of a
       supplementary tutorial.
-- [ ] Phantom-vs-real-EEG study, once Next 1 lands.
+- [ ] Phantom-vs-real-EEG study, once Next 1 lands. **Started**
+      (`examples/study_off_on_mechanisms.py`, note
+      `docs/notes/2026-09-15-off-on-mechanism-study.tex`): all 44 usable
+      ds002778 recordings fit well (obj 0.046–0.092); $\alpha$ near-Markovian
+      and group-invariant (LRD attributed to the drive, not the medium); PD <
+      HC persistence at Cz (model-free $p=0.046$, model-based agrees,
+      suggestive not confirmatory); OFF→ON whitening consistent in direction
+      but underpowered at $n=13$. Two analysis failures resolved en route:
+      the pd6/pd16 provenance trap (preprocessed ON sessions, negative
+      $\beta$) and the v1 grid-boundary artifact. Confirmation needs $n \gg 13$
+      — ds008768 (312 participants) is the named next dataset.
 
 ## Open questions
 

@@ -1,0 +1,165 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\title{The OFF/ON Mechanism Study\\
+\large First population-level result: dopamine, the drive, and the near-Markovian medium}
+\author{Working note --- fracres project (D.~R.~Chin)}
+\date{15 September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent First population study on ds002778 (commits \texttt{5523670},
+\texttt{a9e599c}, \texttt{04bb8de}): for every subject $\times$ session
+$\times$ \{Fz, Cz, Pz\}, the best-fit generative mechanism $(\alpha, H,
+\lambda)$ was grid-searched against the channel's (DFA-$H$, spectral-$\beta$)
+statistics, with the fBm drive promoted to a first-class citizen of
+\texttt{fracres.drivers} and the config system. Headline: the phantom class
+fits \emph{all} 44 usable recordings well; the fractional order $\alpha$ is
+near-Markovian ($\approx 0.92$--$0.94$) and group-invariant, so the LRD lives
+in the inferred drive, not the medium; and the two candidate effects --- PD
+vs.\ control at Cz, and medication OFF$\to$ON whitening --- are consistent in
+direction across model-based and model-free estimators but underpowered at
+this $n$. Two analysis failures (a provenance trap and a grid-boundary
+artifact) are recorded with their resolutions.
+\end{abstract}
+
+\section{Design}
+
+All 31 ds002778 subjects (15 PD $\times$ ses-off/ses-on, 16 HC $\times$
+ses-hc), channels Fz/Cz/Pz, recordings resampled to 64\,Hz and cropped to a
+uniform 120\,s (7{,}680 samples, so estimator finite-sample biases are
+comparable across subjects and sessions). Grid: $\alpha \in \{0.85, 0.9,
+0.95, 1.0\}$, $H \in [0.15, 0.80]$ at $0.05$ spacing, $\lambda = 1$, 3 seeds
+per point with common random numbers; objective = Euclidean distance on
+(DFA-$H$, $\beta$), model vs.\ data. v2 excluded two ON sessions (below) and
+extended the $H$ grid downward; incremental resumable CSV
+(\texttt{outputs/off\_on\_mechanisms\_v2.csv}, 132 rows $=$ 44 recordings
+$\times$ 3 channels).
+
+\section{Results}
+
+\paragraph{1. The phantom class is adequate for real EEG.}
+Objectives are $0.046$--$0.092$ across \emph{all} groups and channels ---
+the same scale as the near-exact single-subject fit. An fBm-driven
+contractive fractional reservoir reproduces the (DFA-$H$, $\beta$) signature
+of real resting-state scalp EEG; this validates the forward-modelling
+premise of the whole project at population scale.
+
+\paragraph{2. The medium is near-Markovian; the LRD lives in the drive.}
+Best-fit $\alpha = 0.92$--$0.94$ with no group or session differences
+($\pm 0.05$--$0.06$ spread, means indistinguishable). Best-fit $H$ does the
+work: $\approx 0.52$--$0.63$ depending on site and group. Within this model
+class, inter-subject and inter-session variability in cortical LRD is
+attributed to the \emph{driving process's} Hurst exponent, not to the
+medium's fractional order. (Caveat: $\alpha$ near the grid boundary --- the
+class may simply not reward $\alpha \neq 1$ strongly; see open threads.)
+
+\paragraph{3. PD vs.\ control: reduced persistence at Cz (suggestive).}
+At Cz, HC data DFA-$H = 1.41$ vs.\ PD-off $1.35$ (Mann--Whitney
+$p = 0.046$); model-based best-$H$ agrees in direction ($0.631$ vs.\ $0.577$,
+$p = 0.078$). Fz and Pz show nothing ($p \geq 0.10$). Model-free and
+model-based estimators converging at the same electrode is the strongest
+internal evidence; but $p = 0.046$ does not survive a 3-channel Bonferroni
+($\alpha^\ast \approx 0.017$), so this is \emph{suggestive}, not
+confirmatory.
+
+\paragraph{4. Medication OFF$\to$ON: consistent whitening, underpowered.}
+Paired across the 13 usable PD subjects: $\Delta H = -0.01 / -0.06 / -0.04$
+at Fz/Cz/Pz (Wilcoxon $p = 0.89 / 0.12 / 0.18$); model-free $\Delta$DFA at
+Cz $= -0.05$ ($p = 0.068$). Every channel points the same way --- dopamine
+\emph{whitens} the effective drive (reduces persistence) --- but $n = 13$
+paired subjects cannot resolve an effect of this size.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lccccl}
+\toprule
+channel & group/session & best $H$ (mean $\pm$ sd) & $\alpha$ & obj. \\
+\midrule
+Fz & HC / PD-off / PD-on & $0.52 / 0.54 / 0.53$ & $\approx 0.93$ & 0.06--0.08 \\
+Cz & HC / PD-off / PD-on & $0.63 / 0.58 / 0.52$ & $\approx 0.92$ & 0.05--0.07 \\
+Pz & HC / PD-off / PD-on & $0.53 / 0.54 / 0.50$ & $\approx 0.92$ & 0.05--0.09 \\
+\bottomrule
+\end{tabular}
+\caption{Best-fit mechanism by site and group (v2, extended grid).}
+\end{table}
+
+\section{Failures encountered and how they were resolved}
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[The provenance trap (v1's ``5$\times$ worse ON fits'').]
+  v1 showed ON-session objectives $\approx 0.35$ vs.\ $\approx 0.07$ for
+  everything else, and ON data statistics with tripled variance. The cause
+  was not medication: \texttt{sub-pd6} and \texttt{sub-pd16} ON sessions are
+  reconstructed from \emph{preprocessed EEGLAB .mat} files (flagged in
+  \texttt{participants.tsv} notes), and the preprocessing destroys the $1/f$
+  structure --- their ON data $\beta$ is \emph{negative} ($-0.42$, $-0.24$)
+  vs.\ $\approx 1.6$ for everyone else. Excluding them, ON fits are as good
+  as OFF. \emph{Resolution:} the exclusion is encoded in the study script
+  with the reason, not applied post-hoc. \emph{Lesson:} read the provenance
+  column \emph{before} running 46 recordings; and a fit residual is a
+  data-quality detector --- the model flagged the bad rows before we did.
+
+  \item[The grid-boundary artifact (v1's ``ON regime extends below 0.45'').]
+  In v1 ($H \geq 0.45$), 31--46\% of ON best fits piled up at the grid
+  minimum, suggesting the ON regime lived below the grid. v2 extended $H$
+  down to $0.15$: \emph{zero} best fits at the new floor; the ON distribution
+  settles in $[0.35, 0.70]$. The ``downward pull'' was truncation, not
+  signal. \emph{Lesson:} a pile-up at a grid edge is always a grid
+  diagnostic first and a finding second; extend before interpreting.
+
+  \item[Two test-caught subtleties in the fBm driver.]
+  (i) $\mathrm{diff} \circ \mathrm{cumsum}$ is \emph{not} bit-identical:
+  floating-point cancellation at cumsum magnitude $O(70)$ leaves a
+  $\sim 10^{-14}$ residual --- assert \texttt{atol=1e-10}, not equality.
+  (ii) z-scoring is \emph{affine} ($(x-\mu)/\sigma$), so the increments are
+  pure-scaled but the trace is not --- the ratio check belongs on
+  \texttt{diff}. Both were caught by tests, not inspection.
+\end{description}
+
+\section{Validation patterns that earned trust}
+
+\begin{itemize}[leftmargin=1.6em]
+  \item \textbf{Model-based / model-free cross-validation.} Every candidate
+        effect was computed both from the best-fit mechanism ($H$) and
+        directly from the data (DFA-$H$, $\beta$). Both candidate effects
+        (Cz group difference, OFF$\to$ON whitening) appear in both views with
+        the same sign --- agreement between an inverse-problem estimate and a
+        direct estimator is much stronger evidence than either alone.
+  \item \textbf{Uniform-length crops.} Cropping every recording to 120\,s
+        made estimator finite-sample bias a constant across subjects and
+        sessions, removing a confound that the raw files (192--213\,s) would
+        have introduced.
+  \item \textbf{Versioned grids with named artifacts.} Keeping v1's CSV and
+        script behaviour reproducible made the boundary artifact
+        demonstrable rather than anecdotal.
+\end{itemize}
+
+\section{Open threads}
+
+\begin{itemize}[leftmargin=1.6em]
+  \item \textbf{Confirmation cohort.} Both candidate effects need $n \gg 13$:
+        OpenNeuro \texttt{ds008768} (312 participants, 358 resting-state PD/HC
+        recordings) is the obvious next dataset; the ingestion module is
+        dataset-agnostic BIDS, so this is a mirror + config change.
+  \item \textbf{$\alpha$ at the boundary.} Best-fit $\alpha \approx 1$
+        everywhere either means the medium is Markovian or that the objective
+        is insensitive to $\alpha$ near 1 at this $T$. A sensitivity study
+        (profile the objective along $\alpha$ at fixed best $H$) would
+        distinguish these.
+  \item \textbf{Multi-channel readout / spatial model.} Channels are
+        currently fit independently; the neural-field variant with a
+        leadfield-like readout (Next 2) would couple them spatially and
+        likely sharpen the Cz effect.
+  \item \textbf{Avalanche/criticality statistics} have not yet entered the
+        objective; adding them (Next 3 machinery) tests whether the phantom
+        matches more than second-order structure.
+\end{itemize}
+
+\end{document}
