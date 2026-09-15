@@ -13,19 +13,19 @@ so ``H`` here is a *property of the inferred mechanism*, and the OFF/ON
 medication contrast becomes a question about how the best-fit
 :math:`(\\alpha, H, \\lambda)` moves with dopaminergic state.
 
-Two drive regimes (``drive_kind``):
+Two drive regimes (``drive_kind``, via :mod:`fracres.drivers`):
 
 - ``"fgn"`` -- fractional Gaussian noise (stationary increments). A stable
   reservoir output then lives at :math:`\\beta < 1`, DFA-H :math:`< 1`.
-- ``"fbm"`` -- fractional Brownian motion (the z-scored cumulative sum of the
-  fGn). Scalp EEG is fBm-*like* (nonstationary: :math:`\\beta \\approx 1.5-2`,
-  DFA-H :math:`> 1`), and a contractive reservoir cannot produce
-  :math:`\\beta > 1` from a stationary drive -- an fGn sweep against raw EEG
-  bottoms out at a large residual, which is itself the diagnostic that the
-  drive must be integrated. With an fBm drive the reservoir passes the
-  low-frequency power law through, so anti-persistent ``H`` (:math:`\\approx
-  0.3-0.4`) reproduces the EEG regime (:math:`\\beta = 2H + 1`,
-  DFA-H :math:`= H + 1`).
+- ``"fbm"`` -- fractional Brownian motion (:func:`fracres.drivers.generate_fbm`,
+  the z-scored cumulative sum of the fGn). Scalp EEG is fBm-*like*
+  (nonstationary: :math:`\\beta \\approx 1.5-2`, DFA-H :math:`> 1`), and a
+  contractive reservoir cannot produce :math:`\\beta > 1` from a stationary
+  drive -- an fGn sweep against raw EEG bottoms out at a large residual, which
+  is itself the diagnostic that the drive must be integrated. With an fBm
+  drive the reservoir passes the low-frequency power law through, so
+  anti-persistent ``H`` (:math:`\\approx 0.3-0.4`) reproduces the EEG regime
+  (:math:`\\beta = 2H + 1`, DFA-H :math:`= H + 1`).
 
 Design choices:
 
@@ -44,29 +44,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 from fracres.data import EEGRecording
-from fracres.drivers import generate_fbm_increments
+from fracres.drivers import generate_fbm, generate_fbm_increments
 from fracres.forward_fit import channel_matrix
 from fracres.kernels import GLKernel
 from fracres.metrics import SignalMetrics, signal_metrics
 from fracres.models import PhantomBrain
 
 MetricVector = tuple[float, float]
-
-
-def _zscored_fbm(fgn) -> jnp.ndarray:
-    """Z-scored cumulative sum of fGn -- a unit-variance fBm trace.
-
-    Integration turns the stationary increment drive into a wandering,
-    nonstationary one (spectrum :math:`f^{-(2H+1)}`); z-scoring keeps the
-    input scale comparable to the fGn regime so reservoir hyperparameters
-    (step size, saturation) mean the same thing across ``drive_kind``.
-    """
-    fbm = jnp.cumsum(fgn)
-    return (fbm - jnp.mean(fbm)) / jnp.std(fbm)
 
 
 def _vector(m: SignalMetrics) -> MetricVector:
@@ -158,9 +145,11 @@ def _simulate_metrics(
             key=k_model, spectral_scale=spectral_scale, step_size=step_size,
             decay=decay,
         )
-        drive = generate_fbm_increments(t_steps, H=hurst, key=k_drive)
-        if drive_kind == "fbm":
-            drive = _zscored_fbm(drive)
+        drive = (
+            generate_fbm(t_steps, H=hurst, key=k_drive)
+            if drive_kind == "fbm"
+            else generate_fbm_increments(t_steps, H=hurst, key=k_drive)
+        )
         drive = drive[:, None]
         _, y_hat = model.simulate(drive)
         m = signal_metrics(np.asarray(y_hat[:, 0]))

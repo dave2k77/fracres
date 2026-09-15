@@ -90,3 +90,45 @@ def test_persistence_sign():
     antipersistent = _empirical_acov(_ensemble(512, 0.2, 600, seed=9), 1)[1]
     assert persistent > 0.1
     assert antipersistent < -0.1
+
+
+# --- fractional Brownian motion (integrated drive) ---------------------------
+
+
+def test_fbm_increments_recover_fgn_exactly():
+    """diff of the unscaled fBm recovers the underlying fGn (to float error)."""
+    from fracres import generate_fbm
+
+    key = jax.random.PRNGKey(13)
+    fgn = generate_fbm_increments(512, H=0.7, key=key)
+    fbm = generate_fbm(512, H=0.7, key=key, zscore=False)
+    # diff(cumsum(x)) is x up to floating-point cancellation: the cumsum
+    # reaches O(70) here, so the residual is O(70 * eps) ~ 1e-14, not 0.
+    assert jnp.allclose(jnp.diff(fbm), fgn[1:], atol=1e-10)
+    # z-scoring is affine ((x - mean) / std): the *increments* are pure-scaled
+    # by 1 / std(fbm), so the fGn is recovered up to one scalar normalisation.
+    fbm_z = generate_fbm(512, H=0.7, key=key, zscore=True)
+    assert np.isclose(float(jnp.std(fbm_z)), 1.0, atol=1e-6)
+    assert np.isclose(float(jnp.mean(fbm_z)), 0.0, atol=1e-6)
+    ratio = jnp.diff(fbm_z) / jnp.diff(fbm)
+    assert jnp.allclose(ratio, ratio[0], rtol=1e-4)
+
+
+def test_fbm_statistics_match_theory():
+    """fBm lives one integration up from fGn: DFA ~ H+1, beta ~ 2H+1."""
+    from fracres import generate_fbm
+    from fracres.metrics import hurst_dfa, spectral_exponent
+
+    H, n, n_real = 0.3, 8192, 24
+    dfa, beta = [], []
+    for s in range(n_real):
+        x = np.asarray(
+            generate_fbm(n, H, key=jax.random.PRNGKey(100 + s), zscore=False)
+        )
+        dfa.append(hurst_dfa(x))
+        beta.append(spectral_exponent(x))
+    # Ensemble medians land near the fBm identities (estimators are biased at
+    # finite length, hence the generous 0.15 slack; the *separation* from the
+    # fGn identities H / 2H-1 is what pins the regime).
+    assert abs(float(np.median(dfa)) - (H + 1)) < 0.15
+    assert abs(float(np.median(beta)) - (2 * H + 1)) < 0.15

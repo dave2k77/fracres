@@ -34,7 +34,7 @@ from fracres.data import (
     load_subject,
     recording_path,
 )
-from fracres.drivers import generate_fbm_increments
+from fracres.drivers import generate_fbm, generate_fbm_increments
 from fracres.forward_fit import ForwardFitResult, channel_matrix, forward_fit
 from fracres.inverse import (
     GridPoint,
@@ -115,6 +115,7 @@ __all__ = [
     "WilsonCowanPhantomBrain",
     "NeuralFieldPhantomBrain",
     "generate_fbm_increments",
+    "generate_fbm",
     "ForwardFitResult",
     "channel_matrix",
     "forward_fit",

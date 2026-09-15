@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from fracres.data import EEGRecording, dataset_root, load_subject
-from fracres.drivers import generate_fbm_increments
+from fracres.drivers import generate_fbm, generate_fbm_increments
 from fracres.inverse import grid_search, metric_distance
 from fracres.kernels import GLKernel
 from fracres.metrics import SignalMetrics
@@ -26,8 +26,6 @@ RES_SIZE, HISTORY = 50, 50  # small, for test speed
 def _phantom_output(alpha, hurst, decay, t_steps, drive_kind="fgn",
                     seed_idx=0, base_seed=0):
     """Reproduce exactly what grid_search's evaluator simulates at one point."""
-    from fracres.inverse import _zscored_fbm
-
     key = jax.random.PRNGKey(base_seed + 104729 * seed_idx)
     k_model, k_drive = jax.random.split(key)
     kernel = GLKernel(alpha=alpha, history_length=HISTORY)
@@ -35,9 +33,11 @@ def _phantom_output(alpha, hurst, decay, t_steps, drive_kind="fgn",
         1, RES_SIZE, 1, kernel,
         key=k_model, spectral_scale=0.95, step_size=0.4, decay=decay,
     )
-    drive = generate_fbm_increments(t_steps, H=hurst, key=k_drive)
-    if drive_kind == "fbm":
-        drive = _zscored_fbm(drive)
+    drive = (
+        generate_fbm(t_steps, H=hurst, key=k_drive)
+        if drive_kind == "fbm"
+        else generate_fbm_increments(t_steps, H=hurst, key=k_drive)
+    )
     drive = drive[:, None]
     _, y_hat = model.simulate(drive)
     return np.asarray(y_hat[:, 0])

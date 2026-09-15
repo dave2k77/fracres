@@ -118,6 +118,31 @@ def test_build_drive_shape_multifeature():
     assert build_drive(c).shape == (128, 3)
 
 
+def test_drive_config_kind_validation_and_default():
+    assert DriveConfig().kind == "fgn"
+    with pytest.raises(ValueError, match="kind"):
+        DriveConfig(kind="pink")
+
+
+def test_build_drive_fbm_kind():
+    """kind='fbm' routes through generate_fbm (integrated, z-scored drive)."""
+    import numpy as np
+
+    c = ExperimentConfig(
+        model=ModelConfig(in_features=2, res_size=16),
+        drive=DriveConfig(time_steps=512, hurst=0.7, kind="fbm"),
+    )
+    drive = build_drive(c)
+    assert drive.shape == (512, 2)
+    # z-scored per feature, and the increment path makes the trace wander
+    # far more than a stationary fGn of the same H (unit variance by design,
+    # but with a low-frequency-dominated spectrum: lag-1 autocorrelation ~ 1).
+    for j in range(2):
+        col = np.asarray(drive[:, j])
+        assert np.isclose(col.std(), 1.0, atol=1e-5)
+        assert np.corrcoef(col[:-1], col[1:])[0, 1] > 0.99
+
+
 def test_build_experiment_runs():
     c = ExperimentConfig(
         model=ModelConfig(res_size=24), drive=DriveConfig(time_steps=150)

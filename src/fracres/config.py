@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 import yaml
 
-from fracres.drivers import generate_fbm_increments
+from fracres.drivers import generate_fbm, generate_fbm_increments
 from fracres.kernels import GLKernel, L1CaputoKernel
 from fracres.models import (
     NeuralFieldPhantomBrain,
@@ -81,16 +81,25 @@ class ModelConfig:
 
 @dataclass
 class DriveConfig:
-    """Stochastic fGn drive: number of steps and Hurst exponent."""
+    """Stochastic drive: regime (fGn or fBm), number of steps, Hurst exponent.
+
+    ``kind="fgn"`` gives stationary fractional Gaussian noise (the default,
+    spectrum ``f^{-(2H-1)}``); ``kind="fbm"`` gives the integrated, z-scored
+    fractional Brownian motion (spectrum ``f^{-(2H+1)}``) for matching raw
+    fBm-like signals such as scalp EEG -- see :func:`fracres.drivers.generate_fbm`.
+    """
 
     time_steps: int = 2000
     hurst: float = 0.7
+    kind: str = "fgn"
 
     def __post_init__(self):
         if self.time_steps < 1:
             raise ValueError(f"time_steps must be >= 1, got {self.time_steps}")
         if not 0.0 < self.hurst < 1.0:
             raise ValueError(f"hurst must be in (0, 1), got {self.hurst}")
+        if self.kind not in ("fgn", "fbm"):
+            raise ValueError(f"kind must be 'fgn' or 'fbm', got {self.kind!r}")
 
 
 @dataclass
@@ -184,17 +193,20 @@ def build_model(config: ExperimentConfig, key=None):
 
 
 def build_drive(config: ExperimentConfig, key=None) -> jnp.ndarray:
-    """Generate the ``(time_steps, in_features)`` fGn drive for ``config``.
+    """Generate the ``(time_steps, in_features)`` drive for ``config``.
 
-    Each input feature is an independent fGn realisation of the configured Hurst
-    exponent. ``key`` defaults to ``PRNGKey(config.seed + 1)`` (distinct from the
-    model-init key).
+    Each input feature is an independent realisation (fGn or fBm, per
+    ``config.drive.kind``) of the configured Hurst exponent. ``key`` defaults
+    to ``PRNGKey(config.seed + 1)`` (distinct from the model-init key).
     """
     if key is None:
         key = jax.random.PRNGKey(config.seed + 1)
     f = config.model.in_features
+    generator = (
+        generate_fbm_increments if config.drive.kind == "fgn" else generate_fbm
+    )
     cols = [
-        generate_fbm_increments(config.drive.time_steps, config.drive.hurst, k)
+        generator(config.drive.time_steps, config.drive.hurst, k)
         for k in jax.random.split(key, f)
     ]
     return jnp.stack(cols, axis=1)

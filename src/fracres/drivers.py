@@ -1,9 +1,13 @@
 """Stochastic driving processes.
 
 Critical brain dynamics are driven here by *fractional Gaussian noise* (fGn),
-the increment process of fractional Brownian motion (fBm). The Hurst exponent
-``H`` controls long-range dependence: ``H > 1/2`` is persistent (long memory),
-``H = 1/2`` recovers white noise, ``H < 1/2`` is anti-persistent.
+the increment process of fractional Brownian motion (fBm), or by fBm itself.
+The Hurst exponent ``H`` controls long-range dependence: ``H > 1/2`` is
+persistent (long memory), ``H = 1/2`` recovers white noise / standard Brownian
+motion, ``H < 1/2`` is anti-persistent. The two drives live in different
+regimes: fGn is stationary (spectrum ``f^{-(2H-1)}``, DFA exponent ``H``),
+while fBm is nonstationary (spectrum ``f^{-(2H+1)}``, DFA exponent ``H + 1``)
+-- the regime raw scalp EEG occupies (see ``fracres.inverse``).
 """
 from __future__ import annotations
 
@@ -72,3 +76,46 @@ def generate_fbm_increments(time_steps: int, H: float, key: jax.Array) -> jnp.nd
     #    (ifft carries 1/m): Var(fgn_j) = (1/m) * sum_k eigenvalues_k = r(0) = 1.
     fgn = jnp.sqrt(m) * jnp.fft.ifft(z * jnp.sqrt(eigenvalues)).real[:time_steps]
     return fgn
+
+
+def generate_fbm(
+    time_steps: int, H: float, key: jax.Array, zscore: bool = True
+) -> jnp.ndarray:
+    """Generate fractional Brownian motion as the cumulative sum of fGn.
+
+    Integrating the (exact Davies-Harte) fGn gives a wandering, nonstationary
+    trace whose increments have the exact fGn autocovariance; the process has
+    spectrum :math:`f^{-(2H+1)}` and DFA exponent :math:`H + 1`
+    (``H = 1/2`` recovers ordinary Brownian motion). This is the drive regime
+    for matching *raw* fBm-like signals such as scalp EEG
+    (:math:`\\beta \\approx 1.5-2`): a stable reservoir passes the drive's
+    low-frequency power law through, so anti-persistent ``H``
+    (:math:`\\approx 0.3-0.4`) yields outputs with :math:`\\beta = 2H + 1`.
+
+    Parameters
+    ----------
+    time_steps : int
+        Number of samples to return.
+    H : float in (0, 1)
+        Hurst exponent of the underlying fGn increments.
+    key : jax.Array
+        PRNG key.
+    zscore : bool
+        Standardise the trace to zero mean / unit variance (default). fBm
+        variance grows like :math:`T^{2H}`, so without rescaling the input
+        scale would depend on length and ``H``; z-scoring keeps reservoir
+        hyperparameters (step size, tanh saturation) comparable across
+        regimes. Increments of the z-scored trace are the exact fGn up to
+        the (scalar) normalisation.
+
+    Returns
+    -------
+    array, shape ``(time_steps,)``
+        fBm trace; ``diff`` of the ``zscore=False`` output recovers the fGn
+        exactly.
+    """
+    fgn = generate_fbm_increments(time_steps, H, key)
+    fbm = jnp.cumsum(fgn)
+    if zscore:
+        fbm = (fbm - jnp.mean(fbm)) / jnp.std(fbm)
+    return fbm
